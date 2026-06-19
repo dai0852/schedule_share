@@ -1,0 +1,79 @@
+<style>
+  .calendar-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; margin-top:22px; }
+  .calendar-card { border:2px solid #d8dedc; border-radius:14px; overflow:hidden; background:#fff; cursor:pointer; transition:.15s; }
+  .calendar-card:hover,.calendar-card.selected { border-color:#0f766e; box-shadow:0 8px 24px rgba(15,118,110,.12); transform:translateY(-2px); }
+  .calendar-card-body { padding:14px 16px 18px; }
+  .calendar-card h3 { margin:0 0 5px; font-size:17px; }
+  .calendar-card p { margin:0; color:#65716d; font-size:13px; line-height:1.55; }
+  .preview { height:310px; background:#f6f7f8; border-bottom:1px solid #d8dedc; padding:10px; font-family:Inter,"Noto Sans JP",sans-serif; color:#15211e; }
+  .chrome { height:34px; display:flex; align-items:center; justify-content:space-between; gap:6px; padding:0 7px; background:white; border:1px solid #d8dedc; border-radius:5px 5px 0 0; }
+  .brand { font-size:10px; font-weight:800; color:#0f766e; }
+  .seg { display:flex; gap:2px; font-size:8px; }
+  .seg span { border:1px solid #d8dedc; padding:3px 5px; border-radius:3px; }
+  .seg .on { color:white; background:#0f766e; border-color:#0f766e; }
+  .grid { display:grid; height:246px; background:white; border:1px solid #d8dedc; border-top:0; }
+  .week { grid-template-columns:22px repeat(7,1fr); grid-template-rows:25px repeat(6,1fr); }
+  .month { grid-template-columns:repeat(7,1fr); grid-template-rows:25px repeat(5,1fr); }
+  .cell { position:relative; min-width:0; border-right:1px solid #e6e9e8; border-bottom:1px solid #e6e9e8; font-size:7px; padding:3px; }
+  .head { text-align:center; font-weight:700; color:#65716d; background:#fafbfb; }
+  .event { position:absolute; left:3px; right:3px; z-index:2; background:#dcefea; border-left:2px solid #0f766e; border-radius:2px; padding:2px; overflow:hidden; font-size:6px; line-height:1.2; }
+  .event.blue { background:#e8f0fe; border-color:#174ea6; }
+  .event.purple { background:#eeeafd; border-color:#4b3ca7; }
+  .chip { display:block; margin-top:3px; border-radius:2px; padding:2px 3px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; background:#dcefea; border-left:2px solid #0f766e; }
+  .list { height:246px; overflow:hidden; background:white; border:1px solid #d8dedc; border-top:0; padding:8px; }
+  .day-title { font-size:8px; font-weight:800; margin:5px 0; }
+  .row { display:grid; grid-template-columns:36px 1fr 32px; gap:6px; align-items:center; min-height:28px; border:1px solid #e2e5e4; border-radius:4px; margin-bottom:4px; padding:4px; font-size:7px; }
+  .tag { text-align:center; border-radius:8px; padding:2px; background:#e8f0fe; color:#174ea6; font-size:6px; }
+  .recommend { display:inline-block; margin-bottom:7px; padding:3px 7px; border-radius:999px; background:#dcefea; color:#0f766e; font-size:11px; font-weight:800; }
+  @media(max-width:950px){ .calendar-options{grid-template-columns:1fr;} }
+</style>
+
+<h2>日・週・月表示のレイアウト</h2>
+<p class="subtitle">営業メンバーの予定を同時に見る前提です。採用したい案をクリックしてください。</p>
+
+<div class="calendar-options">
+  <div class="calendar-card" data-choice="google-grid" onclick="toggleSelect(this)">
+    <div class="preview">
+      <div class="chrome"><span class="brand">営業スケジュール</span><div class="seg"><span>今日</span><span>‹</span><span>›</span><span>日</span><span class="on">週</span><span>月</span></div></div>
+      <div class="grid week">
+        <div class="cell head"></div><div class="cell head">月 15</div><div class="cell head">火 16</div><div class="cell head">水 17</div><div class="cell head">木 18</div><div class="cell head">金 19</div><div class="cell head">土 20</div><div class="cell head">日 21</div>
+        <div class="cell head">9</div><div class="cell"></div><div class="cell"><span class="event blue" style="top:5px;height:27px">9:00 顧客訪問<br>田中</span></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="event" style="top:16px;height:24px">9:30 フォロー<br>田中</span></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell head">10</div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="event purple" style="top:6px;height:36px">10:00 Teams商談<br>佐藤</span></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="event blue" style="top:5px;height:28px">10:00 見積確認<br>田中</span></div><div class="cell"></div>
+        <div class="cell head">11</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="event" style="top:6px;height:28px">11:00 定例会<br>鈴木</span></div><div class="cell"><span class="event purple" style="top:5px;height:32px">11:00 Teams商談<br>佐藤</span></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell head">13</div><div class="cell"></div><div class="cell"><span class="event" style="top:6px;height:28px">13:00 提案準備</span></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell head">14</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"><span class="event blue" style="top:5px;height:32px">14:00 社内MTG<br>鈴木</span></div><div class="cell"></div><div class="cell"></div>
+        <div class="cell head">15</div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div><div class="cell"></div>
+      </div>
+    </div>
+    <div class="calendar-card-body"><span class="recommend">推奨</span><h3>A. Google型カレンダー</h3><p>日・週は時間軸、月は月間グリッド。空き時間や予定の重なりを最も直感的に確認できます。</p></div>
+  </div>
+
+  <div class="calendar-card" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="preview">
+      <div class="chrome"><span class="brand">営業スケジュール</span><div class="seg"><span>今日</span><span>‹</span><span>›</span><span>日</span><span>週</span><span class="on">月</span></div></div>
+      <div class="grid month">
+        <div class="cell head">月</div><div class="cell head">火</div><div class="cell head">水</div><div class="cell head">木</div><div class="cell head">金</div><div class="cell head">土</div><div class="cell head">日</div>
+        <div class="cell">1<span class="chip">顧客訪問</span></div><div class="cell">2</div><div class="cell">3<span class="chip">Teams商談</span></div><div class="cell">4</div><div class="cell">5<span class="chip">定例会</span></div><div class="cell">6</div><div class="cell">7</div>
+        <div class="cell">8</div><div class="cell">9<span class="chip">提案準備</span></div><div class="cell">10</div><div class="cell">11</div><div class="cell">12<span class="chip">フォロー</span></div><div class="cell">13</div><div class="cell">14</div>
+        <div class="cell">15</div><div class="cell">16</div><div class="cell">17<span class="chip">Teams商談</span></div><div class="cell">18</div><div class="cell" style="background:#edf8f5;font-weight:800">19<span class="chip">3件の予定</span></div><div class="cell">20<span class="chip">見積確認</span></div><div class="cell">21</div>
+        <div class="cell">22</div><div class="cell">23</div><div class="cell">24</div><div class="cell">25<span class="chip">顧客訪問</span></div><div class="cell">26</div><div class="cell">27</div><div class="cell">28</div>
+      </div>
+    </div>
+    <div class="calendar-card-body"><h3>B. 月のみグリッド</h3><p>日・週は現在の一覧形式を維持し、月表示だけグリッド化。変更量は少ないですが、表示ごとに操作感が変わります。</p></div>
+  </div>
+
+  <div class="calendar-card" data-choice="list" onclick="toggleSelect(this)">
+    <div class="preview">
+      <div class="chrome"><span class="brand">営業スケジュール</span><div class="seg"><span>今日</span><span>‹</span><span>›</span><span>日</span><span>週</span><span class="on">月</span></div></div>
+      <div class="list">
+        <div class="day-title">6月19日 金曜日</div>
+        <div class="row"><b>09:30</b><span>既存顧客フォロー<br><small>田中 / 名古屋</small></span><i class="tag">Google</i></div>
+        <div class="row"><b>11:00</b><span>Teams 商談<br><small>佐藤 / オンライン</small></span><i class="tag">Teams</i></div>
+        <div class="row"><b>14:00</b><span>社内ミーティング<br><small>鈴木 / 会議室A</small></span><i class="tag">Microsoft</i></div>
+        <div class="day-title">6月20日 土曜日</div>
+        <div class="row"><b>10:00</b><span>見積確認<br><small>田中 / オンライン</small></span><i class="tag">Google</i></div>
+      </div>
+    </div>
+    <div class="calendar-card-body"><h3>C. 一覧形式を拡張</h3><p>日・週・月とも日付別の一覧。件名は読みやすい一方、空き時間や予定の重なりは把握しにくい構成です。</p></div>
+  </div>
+</div>
