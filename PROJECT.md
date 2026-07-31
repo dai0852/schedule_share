@@ -12,6 +12,7 @@
 - Google Calendarは各営業メンバーがOAuthで読み取り許可する。
 - Microsoft 365/Teams予定は管理者承認済みのGraph権限で読み取る。
 - 同一時間帯の予定は重複排除せず両方表示する。
+- 予定はGoogleカレンダー型の日・週・月表示で閲覧でき、表示期間を前後または今日へ移動できる。
 
 ## Technical Stack
 - Next.js App Router

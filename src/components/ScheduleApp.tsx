@@ -1,15 +1,22 @@
 "use client";
 
-import { addDays, format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import { Calendar, Filter, LogIn, LogOut, RefreshCcw, ShieldCheck } from "lucide-react";
+import { Filter, LogIn, LogOut, RefreshCcw, ShieldCheck } from "lucide-react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CalendarToolbar } from "@/components/CalendarToolbar";
+import { MonthCalendar } from "@/components/MonthCalendar";
+import { TimeGridCalendar } from "@/components/TimeGridCalendar";
 import type { SalesMember } from "@/data/demo";
+import {
+  getCalendarRange,
+  getVisibleDays,
+  moveSelectedDate,
+  type ViewMode,
+} from "@/domain/calendar";
 import type { NormalizedEvent } from "@/domain/schedule";
 import { getClientAuth, getMicrosoftProvider, hasFirebaseClientConfig } from "@/lib/firebase/client";
-
-type ViewMode = "day" | "week";
 
 interface ScheduleAppProps {
   initialMembers: SalesMember[];
@@ -18,12 +25,15 @@ interface ScheduleAppProps {
 export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [events, setEvents] = useState<NormalizedEvent[]>([]);
-  const [mode, setMode] = useState<ViewMode>("day");
+  const [mode, setMode] = useState<ViewMode>("week");
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [selectedOwner, setSelectedOwner] = useState("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
   const firebaseReady = hasFirebaseClientConfig();
-  const today = useMemo(() => startOfDay(new Date("2026-06-19T00:00:00+09:00")), []);
+  const range = useMemo(() => getCalendarRange(mode, selectedDate), [mode, selectedDate]);
+  const visibleDays = useMemo(() => getVisibleDays(range), [range]);
 
   useEffect(() => {
     if (!firebaseReady) return;
@@ -32,12 +42,15 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
   }, [firebaseReady]);
 
   const loadEvents = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
+
     try {
-      const start = today.toISOString();
-      const end = addDays(today, mode === "day" ? 1 : 7).toISOString();
-      const params = new URLSearchParams({ start, end });
+      const params = new URLSearchParams({
+        start: range.start.toISOString(),
+        end: range.end.toISOString(),
+      });
       if (selectedOwner !== "all") params.set("ownerUserId", selectedOwner);
 
       const headers: HeadersInit = {};
@@ -50,13 +63,15 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
       const response = await fetch(`/api/events?${params.toString()}`, { headers });
       if (!response.ok) throw new Error(await response.text());
       const body = (await response.json()) as { events: NormalizedEvent[] };
-      setEvents(body.events);
+      if (requestId === requestIdRef.current) setEvents(body.events);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "予定の取得に失敗しました。");
+      if (requestId === requestIdRef.current) {
+        setError(caught instanceof Error ? caught.message : "予定の取得に失敗しました。");
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [firebaseReady, firebaseUser, mode, selectedOwner, today]);
+  }, [firebaseReady, firebaseUser, range, selectedOwner]);
 
   useEffect(() => {
     if (!firebaseReady || firebaseUser) void loadEvents();
@@ -72,7 +87,7 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
     await signOut(getClientAuth());
   }
 
-  const grouped = groupByDay(events);
+  const title = getCalendarTitle(mode, selectedDate, range);
 
   return (
     <section className="workspace">
@@ -83,15 +98,6 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
             <strong>{firebaseReady ? "Microsoftログイン" : "デモモード"}</strong>
             <span>{firebaseUser?.email ?? "ローカル確認用のデモ認証で表示中"}</span>
           </div>
-        </div>
-
-        <div className="controlGroup" aria-label="表示切替">
-          <button className={mode === "day" ? "active" : ""} onClick={() => setMode("day")}>
-            日
-          </button>
-          <button className={mode === "week" ? "active" : ""} onClick={() => setMode("week")}>
-            週
-          </button>
         </div>
 
         <label className="selectLabel">
@@ -127,59 +133,44 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
         ) : null}
       </aside>
 
-      <section className="scheduleSurface" aria-live="polite">
-        <div className="scheduleHeader">
-          <div>
-            <p className="eyebrow">予定一覧</p>
-            <h2>
-              {format(today, "yyyy年M月d日", { locale: ja })} {mode === "week" ? "から7日間" : ""}
-            </h2>
-          </div>
-          <div className="countBadge">
-            <Calendar aria-hidden="true" size={16} />
-            {events.length}件
-          </div>
-        </div>
-
+      <section className="scheduleSurface" aria-live="polite" aria-busy={loading}>
+        <CalendarToolbar
+          title={title}
+          mode={mode}
+          eventCount={events.length}
+          onToday={() => setSelectedDate(new Date())}
+          onMove={(amount) => setSelectedDate((date) => moveSelectedDate(date, mode, amount))}
+          onModeChange={setMode}
+        />
         {error ? <p className="errorText">{error}</p> : null}
-        {Object.entries(grouped).map(([day, dayEvents]) => (
-          <div className="dayBlock" key={day}>
-            <h3>{format(new Date(day), "M月d日 EEEE", { locale: ja })}</h3>
-            <div className="eventList">
-              {dayEvents.map((event) => (
-                <article className="eventRow" key={event.eventId}>
-                  <time>
-                    {format(new Date(event.start), "HH:mm")} - {format(new Date(event.end), "HH:mm")}
-                  </time>
-                  <div>
-                    <strong>{event.title}</strong>
-                    <span>
-                      {event.ownerName}
-                      {event.location ? ` / ${event.location}` : ""}
-                    </span>
-                  </div>
-                  <SourcePill event={event} />
-                </article>
-              ))}
-            </div>
-          </div>
-        ))}
-        {!loading && events.length === 0 ? <p className="emptyText">表示対象の予定はありません。</p> : null}
+        {loading ? <p className="loadingText">予定を読み込んでいます…</p> : null}
+        {mode === "month" ? (
+          <MonthCalendar days={visibleDays} selectedDate={selectedDate} events={events} />
+        ) : (
+          <TimeGridCalendar days={visibleDays} events={events} />
+        )}
+        {!loading && events.length === 0 ? (
+          <p className="emptyText calendarEmpty">表示対象の予定はありません。</p>
+        ) : null}
       </section>
     </section>
   );
 }
 
-function groupByDay(events: NormalizedEvent[]): Record<string, NormalizedEvent[]> {
-  return events.reduce<Record<string, NormalizedEvent[]>>((acc, event) => {
-    const key = startOfDay(new Date(event.start)).toISOString();
-    acc[key] = acc[key] ?? [];
-    acc[key].push(event);
-    return acc;
-  }, {});
-}
-
-function SourcePill({ event }: { event: NormalizedEvent }) {
-  const label = event.source === "google" ? "Google" : event.source === "teams" ? "Teams" : "Microsoft";
-  return <span className={`sourcePill ${event.source}`}>{label}</span>;
+function getCalendarTitle(
+  mode: ViewMode,
+  selectedDate: Date,
+  range: { start: Date; end: Date },
+): string {
+  if (mode === "day") {
+    return format(selectedDate, "yyyy年M月d日 EEEE", { locale: ja });
+  }
+  if (mode === "week") {
+    return `${format(range.start, "yyyy年M月d日", { locale: ja })} – ${format(
+      new Date(range.end.getTime() - 1),
+      "M月d日",
+      { locale: ja },
+    )}`;
+  }
+  return format(selectedDate, "yyyy年M月", { locale: ja });
 }
