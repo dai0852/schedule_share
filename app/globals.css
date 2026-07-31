@@ -200,6 +200,248 @@ button {
   padding: 22px;
 }
 
+.scheduleSurface {
+  min-width: 0;
+}
+
+.calendarToolbar,
+.calendarNavigation,
+.calendarToolbarActions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.calendarToolbar {
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.calendarNavigation h2 {
+  font-size: 22px;
+  margin: 0 0 0 6px;
+}
+
+.calendarToolbarActions {
+  margin-left: auto;
+}
+
+.calendarMode {
+  grid-template-columns: repeat(3, 1fr);
+  min-width: 150px;
+}
+
+.compactButton {
+  min-height: 36px;
+}
+
+.iconButton {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: inline-flex;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.calendarScroller {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.timeGridScroller {
+  max-height: calc(100vh - 190px);
+}
+
+.timeGrid {
+  display: grid;
+  grid-template-columns: 56px repeat(var(--calendar-columns), minmax(120px, 1fr));
+  min-width: 720px;
+  position: relative;
+}
+
+.timeGridHeaderCorner,
+.timeGridDayHeader,
+.allDayLabel,
+.allDayCell {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  min-height: 38px;
+  padding: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.timeGridDayHeader {
+  font-weight: 800;
+  text-align: center;
+}
+
+.timeGridDayHeader.today {
+  background: var(--surface-strong);
+  color: var(--accent-dark);
+}
+
+.allDayLabel {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 1;
+  top: 38px;
+}
+
+.allDayCell {
+  display: grid;
+  gap: 3px;
+  top: 38px;
+  z-index: 4;
+}
+
+.hourLabels {
+  position: relative;
+}
+
+.hourLabels span {
+  color: var(--muted);
+  font-size: 11px;
+  position: absolute;
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.timeGridDay {
+  border-left: 1px solid var(--border);
+  position: relative;
+}
+
+.hourLine {
+  border-top: 1px solid #e8ebea;
+  left: 0;
+  position: absolute;
+  right: 0;
+}
+
+.timedEvent {
+  overflow: hidden;
+  padding: 1px 2px;
+  position: absolute;
+}
+
+.calendarEventCard {
+  border-left: 3px solid currentcolor;
+  border-radius: 4px;
+  height: 100%;
+  overflow: hidden;
+  padding: 4px 6px;
+}
+
+.calendarEventCard time,
+.calendarEventCard strong,
+.calendarEventCard span {
+  display: block;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarEventCard.google,
+.monthEvent.google {
+  background: #e8f0fe;
+  color: #174ea6;
+}
+
+.calendarEventCard.microsoft,
+.monthEvent.microsoft {
+  background: #e7f0ff;
+  color: #1b4f9c;
+}
+
+.calendarEventCard.teams,
+.monthEvent.teams {
+  background: #eeeafd;
+  color: #4b3ca7;
+}
+
+.monthScroller {
+  max-height: none;
+}
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(120px, 1fr));
+  min-width: 840px;
+}
+
+.monthWeekday {
+  background: #f8faf9;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px;
+  text-align: center;
+}
+
+.monthDay {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  min-height: 120px;
+  padding: 7px;
+}
+
+.monthDay > time {
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 5px;
+}
+
+.monthDay.outsideMonth {
+  background: #f7f8f8;
+  color: var(--muted);
+}
+
+.monthDay.today > time {
+  align-items: center;
+  background: var(--accent);
+  border-radius: 50%;
+  color: #fff;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.monthEvent {
+  border-left: 3px solid currentcolor;
+  border-radius: 3px;
+  font-size: 11px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  padding: 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moreEvents,
+.loadingText {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.loadingText {
+  color: var(--accent-dark);
+  font-size: 13px;
+}
+
+.calendarEmpty {
+  margin: 12px 0 0;
+}
+
 .scheduleHeader {
   align-items: center;
   display: flex;
@@ -352,5 +594,38 @@ button {
 
   .sourcePill {
     justify-self: start;
+  }
+
+  .scheduleSurface {
+    padding: 12px;
+  }
+
+  .calendarToolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .calendarNavigation {
+    flex-wrap: wrap;
+  }
+
+  .calendarNavigation h2 {
+    flex-basis: 100%;
+    margin: 4px 0 0;
+  }
+
+  .calendarToolbarActions {
+    align-items: stretch;
+    flex-direction: column;
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .countBadge {
+    align-self: flex-start;
+  }
+
+  .timeGridScroller {
+    max-height: 70vh;
   }
 }
