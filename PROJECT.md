@@ -32,4 +32,4 @@
 - `docs/plans/`: 実装計画。
 
 ## Current Direction
-ローカルではFirebase設定がない場合、デモ認証とデモ予定で動作する。実運用時は `.env.example` を元にFirebase、Microsoft Entra、Google OAuth、Firestoreを設定し、`ALLOW_DEMO_AUTH=false` と `USE_FIRESTORE=true` に切り替える。
+デモ認証は `ALLOW_DEMO_AUTH=true` を明示したローカル確認時だけ使用する。Firebase設定が不足していても自動的にデモ認証へ切り替えない。実運用時は `.env.example` を元にFirebase、Microsoft Entra、Google OAuth、Firestoreを設定し、`ALLOW_DEMO_AUTH=false` と `USE_FIRESTORE=true` にする。予定APIはFirebase IDトークンを検証し、Microsoftプロバイダーで認証した許可済み社内ドメインのユーザーだけに公開する。

@@ -23,7 +23,10 @@ interface ScheduleAppProps {
 }
 
 export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
+  const firebaseReady = hasFirebaseClientConfig();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [authInitializing, setAuthInitializing] = useState(firebaseReady);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [events, setEvents] = useState<NormalizedEvent[]>([]);
   const [mode, setMode] = useState<ViewMode>("week");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -31,17 +34,37 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
-  const firebaseReady = hasFirebaseClientConfig();
   const range = useMemo(() => getCalendarRange(mode, selectedDate), [mode, selectedDate]);
   const visibleDays = useMemo(() => getVisibleDays(range), [range]);
 
   useEffect(() => {
-    if (!firebaseReady) return;
+    if (!firebaseReady) {
+      setAuthInitializing(false);
+      return;
+    }
     const auth = getClientAuth();
-    return onAuthStateChanged(auth, setFirebaseUser);
+    return onAuthStateChanged(
+      auth,
+      (user) => {
+        setFirebaseUser(user);
+        setAuthInitializing(false);
+        setAuthError(null);
+      },
+      () => {
+        setFirebaseUser(null);
+        setAuthInitializing(false);
+        setAuthError("Microsoft 365の認証状態を確認できませんでした。");
+      },
+    );
   }, [firebaseReady]);
 
   const loadEvents = useCallback(async () => {
+    const authenticatedUser = firebaseUser;
+    if (firebaseReady && !authenticatedUser) {
+      setError("Microsoft 365でログインしてください。");
+      return;
+    }
+
     const requestId = ++requestIdRef.current;
     setLoading(true);
     setError(null);
@@ -54,8 +77,9 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
       if (selectedOwner !== "all") params.set("ownerUserId", selectedOwner);
 
       const headers: HeadersInit = {};
-      if (firebaseReady && firebaseUser) {
-        headers.authorization = `Bearer ${await firebaseUser.getIdToken()}`;
+      if (firebaseReady) {
+        if (!authenticatedUser) return;
+        headers.authorization = `Bearer ${await authenticatedUser.getIdToken()}`;
       } else {
         headers["x-demo-email"] = "admin@example.co.jp";
       }
@@ -74,17 +98,27 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
   }, [firebaseReady, firebaseUser, range, selectedOwner]);
 
   useEffect(() => {
-    if (!firebaseReady || firebaseUser) void loadEvents();
-  }, [firebaseReady, firebaseUser, loadEvents]);
+    if (!authInitializing && (!firebaseReady || firebaseUser)) void loadEvents();
+  }, [authInitializing, firebaseReady, firebaseUser, loadEvents]);
 
   async function handleSignIn() {
-    const auth = getClientAuth();
-    await signInWithPopup(auth, getMicrosoftProvider());
+    setAuthError(null);
+    try {
+      const auth = getClientAuth();
+      await signInWithPopup(auth, getMicrosoftProvider());
+    } catch {
+      setAuthError("Microsoft 365でのログインに失敗しました。");
+    }
   }
 
   async function handleSignOut() {
     if (!firebaseReady) return;
-    await signOut(getClientAuth());
+    setAuthError(null);
+    try {
+      await signOut(getClientAuth());
+    } catch {
+      setAuthError("ログアウトに失敗しました。もう一度お試しください。");
+    }
   }
 
   const title = getCalendarTitle(mode, selectedDate, range);
@@ -95,10 +129,21 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
         <div className="authPanel">
           <ShieldCheck aria-hidden="true" size={20} />
           <div>
-            <strong>{firebaseReady ? "Microsoftログイン" : "デモモード"}</strong>
-            <span>{firebaseUser?.email ?? "ローカル確認用のデモ認証で表示中"}</span>
+            <strong>
+              {firebaseReady
+                ? authInitializing
+                  ? "認証を確認しています…"
+                  : "Microsoftログイン"
+                : "デモモード"}
+            </strong>
+            <span>
+              {firebaseReady
+                ? firebaseUser?.email ?? "Microsoft 365でログインしてください"
+                : "ローカル確認用のデモ認証で表示中"}
+            </span>
           </div>
         </div>
+        {authError ? <p className="errorText">{authError}</p> : null}
 
         <label className="selectLabel">
           <Filter aria-hidden="true" size={16} />
@@ -113,12 +158,16 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
           </select>
         </label>
 
-        <button className="primaryButton" onClick={loadEvents} disabled={loading}>
+        <button
+          className="primaryButton"
+          onClick={loadEvents}
+          disabled={loading || authInitializing || (firebaseReady && !firebaseUser)}
+        >
           <RefreshCcw aria-hidden="true" size={16} />
           {loading ? "更新中" : "予定を更新"}
         </button>
 
-        {firebaseReady ? (
+        {firebaseReady && !authInitializing ? (
           firebaseUser ? (
             <button className="secondaryButton" onClick={handleSignOut}>
               <LogOut aria-hidden="true" size={16} />
@@ -149,7 +198,7 @@ export function ScheduleApp({ initialMembers }: ScheduleAppProps) {
         ) : (
           <TimeGridCalendar days={visibleDays} events={events} />
         )}
-        {!loading && events.length === 0 ? (
+        {!loading && (!firebaseReady || firebaseUser) && events.length === 0 ? (
           <p className="emptyText calendarEmpty">表示対象の予定はありません。</p>
         ) : null}
       </section>

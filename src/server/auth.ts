@@ -2,6 +2,7 @@ import { demoUser } from "@/data/demo";
 import type { AppUser, UserRole } from "@/domain/access";
 import { isAllowedCorporateEmail, parseAllowedDomains } from "@/domain/access";
 import { getAdminAuth, hasFirebaseAdminConfig } from "@/lib/firebase/admin";
+import type { DecodedIdToken } from "firebase-admin/auth";
 
 const DEFAULT_ALLOWED_DOMAIN = "example.co.jp";
 
@@ -31,7 +32,17 @@ export async function requireAppUser(request: Request): Promise<AppUser> {
     throw new Response("認証が必要です。", { status: 401 });
   }
 
-  const decoded = await getAdminAuth().verifyIdToken(token);
+  let decoded: DecodedIdToken;
+  try {
+    decoded = await getAdminAuth().verifyIdToken(token);
+  } catch {
+    throw new Response("認証情報が無効です。", { status: 401 });
+  }
+
+  if (decoded.firebase.sign_in_provider !== "microsoft.com") {
+    throw new Response("Microsoft 365アカウントでの認証が必要です。", { status: 403 });
+  }
+
   const email = decoded.email;
   if (!isAllowedCorporateEmail(email, allowedDomains)) {
     throw new Response("社内ドメインのアカウントのみ閲覧できます。", { status: 403 });
@@ -46,7 +57,7 @@ export async function requireAppUser(request: Request): Promise<AppUser> {
 }
 
 function isDemoAuthAllowed(): boolean {
-  return process.env.ALLOW_DEMO_AUTH === "true" || !hasFirebaseAdminConfig();
+  return process.env.ALLOW_DEMO_AUTH === "true";
 }
 
 function getRoleForEmail(email?: string, claimRole?: UserRole): UserRole {
