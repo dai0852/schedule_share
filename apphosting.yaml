@@ -1,0 +1,82 @@
+env:
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    secret: NEXT_PUBLIC_FIREBASE_API_KEY
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    secret: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    secret: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    secret: NEXT_PUBLIC_FIREBASE_APP_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_MICROSOFT_TENANT_ID
+    secret: NEXT_PUBLIC_MICROSOFT_TENANT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: GOOGLE_CLIENT_ID
+    secret: GOOGLE_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_CLIENT_SECRET
+    secret: GOOGLE_CLIENT_SECRET
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_OAUTH_REDIRECT_URI
+    secret: GOOGLE_OAUTH_REDIRECT_URI
+    availability:
+      - RUNTIME
+  - variable: GOOGLE_TOKEN_ENCRYPTION_KEY
+    secret: GOOGLE_TOKEN_ENCRYPTION_KEY
+    availability:
+      - RUNTIME
+  - variable: FIREBASE_PROJECT_ID
+    secret: FIREBASE_PROJECT_ID
+    availability:
+      - RUNTIME
+  - variable: ALLOWED_EMAIL_DOMAINS
+    secret: ALLOWED_EMAIL_DOMAINS
+    availability:
+      - RUNTIME
+  - variable: ADMIN_EMAILS
+    secret: ADMIN_EMAILS
+    availability:
+      - RUNTIME
+  - variable: DEFAULT_USER_ROLE
+    secret: DEFAULT_USER_ROLE
+    availability:
+      - RUNTIME
+  - variable: ALLOW_DEMO_AUTH
+    secret: ALLOW_DEMO_AUTH
+    availability:
+      - RUNTIME
+  - variable: USE_FIRESTORE
+    secret: USE_FIRESTORE
+    availability:
+      - RUNTIME
+  - variable: MICROSOFT_TENANT_ID
+    secret: MICROSOFT_TENANT_ID
+    availability:
+      - RUNTIME
+  - variable: MICROSOFT_CLIENT_ID
+    secret: MICROSOFT_CLIENT_ID
+    availability:
+      - RUNTIME
+  - variable: MICROSOFT_CLIENT_SECRET
+    secret: MICROSOFT_CLIENT_SECRET
+    availability:
+      - RUNTIME
+  - variable: SYNC_JOB_SECRET
+    secret: SYNC_JOB_SECRET
+    availability:
+      - RUNTIME

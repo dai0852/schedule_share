@@ -44,3 +44,5 @@ Cloud Schedulerは5分間隔で内部同期APIを呼び、GoogleとMicrosoftを�
 本番公開originは会社が所有しSearch Consoleで確認済みのApp Hostingカスタムドメインとする。Google OAuth callback、公開ホームページ、プライバシーポリシー、Firebase Authenticationの承認済みドメインをこの会社ドメインへ揃え、Firebase発行の `*.hosted.app` はTesting・開発確認に限定する。App Hostingのsecretは対象バックエンドとリージョンを明示してアクセスを付与し、Consoleが同名YAML変数を上書きしていないことを監査する。Cloud Schedulerの `x-sync-secret` はjob閲覧権限から見える可能性があるため、fullView権限を最小化し、監査と即時ローテーション手順を維持する。
 
 デモ認証は非本番で `ALLOW_DEMO_AUTH=true` を明示したローカル確認時だけ使用する。本番では環境変数が誤って `true` でもデモ認証を無効化し、`ALLOW_DEMO_AUTH=false`、`USE_FIRESTORE=true` とする。Firebase設定不足時にデモ認証へ自動切替しない。未認証時は専用ログイン画面だけを表示し、認証後にカレンダー操作画面へ切り替える。画面デザインは `design.md`、本番設定と安全なデプロイ手順は `docs/setup/calendar-integrations.md` に従う。
+
+App HostingバックエンドはFirebaseプロジェクト `schedule-share-4ff0e` の `schedule-share`、リージョンは `asia-east1`、live branchは `main` とする。初期確認URLは `https://schedule-share--schedule-share-4ff0e.asia-east1.hosted.app`。会社所有カスタムドメインの接続が完了するまでは、このURLを公開前の動作確認にだけ使用する。`apphosting.yaml` にはSecret Managerの秘密名だけを記録し、秘密値、ローカルの `.env.local`、サービスアカウントJSONはGitへ含めない。
