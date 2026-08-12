@@ -1,6 +1,6 @@
 import { format, isSameDay, isSameMonth } from "date-fns";
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
-import type { NormalizedEvent } from "@/domain/schedule";
+import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
 
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 const MAX_VISIBLE_EVENTS = 3;
@@ -41,6 +41,12 @@ export function MonthCalendar({
                   key={event.eventId}
                   title={`${event.title} / ${event.ownerName}`}
                 >
+                  <span
+                    className="eventSourceLabel"
+                    aria-label={`予定元: ${CALENDAR_SOURCE_LABELS[event.source]}`}
+                  >
+                    {CALENDAR_SOURCE_LABELS[event.source]}
+                  </span>{" "}
                   {!isAllDayEvent(event) ? <span>{format(new Date(event.start), "HH:mm")}</span> : null}{" "}
                   {event.title}
                 </article>

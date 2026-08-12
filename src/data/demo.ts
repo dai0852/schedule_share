@@ -1,17 +1,6 @@
 import type { AppUser } from "@/domain/access";
 import type { NormalizedEvent } from "@/domain/schedule";
 
-export interface SalesMember {
-  id: string;
-  name: string;
-  email: string;
-  department: string;
-  googleConnected: boolean;
-  microsoftSyncEnabled: boolean;
-  primaryGoogleCalendarId: string;
-  microsoftUserPrincipalName: string;
-}
-
 export const demoUser: AppUser = {
   uid: "demo-viewer",
   email: "viewer@example.co.jp",
@@ -19,42 +8,9 @@ export const demoUser: AppUser = {
   displayName: "デモ管理者",
 };
 
-export const salesMembers: SalesMember[] = [
-  {
-    id: "sales-a",
-    name: "田中",
-    email: "tanaka@example.co.jp",
-    department: "営業部",
-    googleConnected: true,
-    microsoftSyncEnabled: true,
-    primaryGoogleCalendarId: "primary",
-    microsoftUserPrincipalName: "tanaka@example.co.jp",
-  },
-  {
-    id: "sales-b",
-    name: "佐藤",
-    email: "sato@example.co.jp",
-    department: "営業部",
-    googleConnected: true,
-    microsoftSyncEnabled: true,
-    primaryGoogleCalendarId: "primary",
-    microsoftUserPrincipalName: "sato@example.co.jp",
-  },
-  {
-    id: "sales-c",
-    name: "鈴木",
-    email: "suzuki@example.co.jp",
-    department: "営業部",
-    googleConnected: false,
-    microsoftSyncEnabled: true,
-    primaryGoogleCalendarId: "primary",
-    microsoftUserPrincipalName: "suzuki@example.co.jp",
-  },
-];
-
 export const demoEvents: NormalizedEvent[] = [
   {
-    eventId: "google:g-100",
+    eventId: "google:sales-a:g-100",
     source: "google",
     sourceEventId: "g-100",
     ownerUserId: "sales-a",
@@ -69,7 +25,7 @@ export const demoEvents: NormalizedEvent[] = [
     updatedAt: "2026-06-19T00:10:00Z",
   },
   {
-    eventId: "teams:m-200",
+    eventId: "teams:sales-b:m-200",
     source: "teams",
     sourceEventId: "m-200",
     ownerUserId: "sales-b",
@@ -84,7 +40,7 @@ export const demoEvents: NormalizedEvent[] = [
     updatedAt: "2026-06-19T00:15:00Z",
   },
   {
-    eventId: "microsoft:m-201",
+    eventId: "microsoft:sales-c:m-201",
     source: "microsoft",
     sourceEventId: "m-201",
     ownerUserId: "sales-c",
@@ -99,7 +55,7 @@ export const demoEvents: NormalizedEvent[] = [
     updatedAt: "2026-06-19T00:20:00Z",
   },
   {
-    eventId: "google:g-101",
+    eventId: "google:sales-a:g-101",
     source: "google",
     sourceEventId: "g-101",
     ownerUserId: "sales-a",

@@ -44,6 +44,18 @@ describe("requireAppUser", () => {
     expect(adminMocks.verifyIdToken).not.toHaveBeenCalled();
   });
 
+  it("productionではALLOW_DEMO_AUTH=trueでもx-demo-emailを認証に使用しない", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ALLOW_DEMO_AUTH", "true");
+
+    await expectResponse(
+      requireAppUser(createRequest({ "x-demo-email": "admin@studio-csa.com" })),
+      401,
+      "認証が必要です。",
+    );
+    expect(adminMocks.verifyIdToken).not.toHaveBeenCalled();
+  });
+
   it("rejects requests without a bearer token", async () => {
     await expectResponse(requireAppUser(createRequest()), 401, "認証が必要です。");
   });

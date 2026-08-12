@@ -1,13 +1,14 @@
 :root {
   color-scheme: light;
-  --bg: #f6f7f8;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --surface-strong: #eef4f2;
-  --border: #d8dedc;
-  --text: #15211e;
-  --muted: #65716d;
-  --accent: #0f766e;
-  --accent-dark: #115e59;
+  --surface-strong: #e9fffb;
+  --border: #000000;
+  --grid: #e5e7eb;
+  --text: #111111;
+  --muted: #606b69;
+  --accent: #00ac94;
+  --accent-dark: #007f70;
   --warning: #a15c00;
   --danger: #b42318;
 }
@@ -18,29 +19,52 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(to right, var(--grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
   color: var(--text);
   font-family:
     Inter, "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 button,
+input,
 select {
   font: inherit;
 }
 
 button {
   cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+button:not(:disabled):hover {
+  transform: translateY(-2px);
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 60%, white);
+  outline-offset: 3px;
 }
 
 .topbar {
   align-items: center;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 40px;
   display: flex;
   justify-content: space-between;
   min-height: 88px;
-  padding: 20px 32px;
+  margin: 24px 32px 0;
+  padding: 20px 28px;
 }
 
 .topbar h1,
@@ -54,7 +78,7 @@ button {
   color: var(--accent-dark);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0;
+  letter-spacing: 0.14em;
   margin: 0 0 4px;
   text-transform: uppercase;
 }
@@ -73,7 +97,7 @@ button {
 .countBadge {
   background: var(--surface-strong);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 999px;
   color: var(--accent-dark);
   font-weight: 700;
   padding: 8px 10px;
@@ -91,7 +115,7 @@ button {
 .adminSurface {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 40px;
 }
 
 .sidebar {
@@ -105,7 +129,7 @@ button {
   align-items: flex-start;
   background: #f8fbfa;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 24px;
   display: flex;
   gap: 10px;
   padding: 12px;
@@ -127,8 +151,9 @@ button {
 }
 
 .controlGroup {
-  background: #edf1f0;
-  border-radius: 8px;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 999px;
   display: grid;
   gap: 4px;
   grid-template-columns: 1fr 1fr;
@@ -139,11 +164,22 @@ button {
 .primaryButton,
 .secondaryButton {
   align-items: center;
-  border-radius: 6px;
+  border-radius: 999px;
   display: inline-flex;
   gap: 8px;
   justify-content: center;
   min-height: 40px;
+}
+
+.navigationButton {
+  min-height: 40px;
+  text-decoration: none;
+}
+
+.appNavigation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .controlGroup button {
@@ -153,8 +189,8 @@ button {
 }
 
 .controlGroup button.active {
-  background: var(--surface);
-  color: var(--text);
+  background: var(--accent);
+  color: #000;
   font-weight: 700;
 }
 
@@ -169,15 +205,15 @@ button {
 .selectLabel select {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 999px;
   min-height: 40px;
   padding: 0 10px;
 }
 
 .primaryButton {
   background: var(--accent);
-  border: 1px solid var(--accent);
-  color: #fff;
+  border: 1px solid var(--border);
+  color: #000;
   font-weight: 700;
   padding: 0 14px;
 }
@@ -188,11 +224,21 @@ button {
   cursor: not-allowed;
 }
 
+.primaryButton:not(:disabled):hover {
+  background: #fff;
+}
+
 .secondaryButton {
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 0 14px;
+}
+
+.secondaryButton:not(:disabled):hover,
+.iconButton:not(:disabled):hover {
+  background: #000;
+  color: #fff;
 }
 
 .scheduleSurface,
@@ -239,7 +285,7 @@ button {
   align-items: center;
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 50%;
   display: inline-flex;
   height: 36px;
   justify-content: center;
@@ -248,7 +294,7 @@ button {
 
 .calendarScroller {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 24px;
   overflow: auto;
 }
 
@@ -347,6 +393,17 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.calendarEventCard .eventSourceLabel,
+.monthEvent .eventSourceLabel {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  margin-right: 3px;
+  opacity: 0.82;
+  text-transform: uppercase;
 }
 
 .calendarEventCard.google,
@@ -526,6 +583,47 @@ button {
   margin: 24px 32px;
 }
 
+.adminHeader {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.adminHeaderActions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.memberForm {
+  align-items: end;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr minmax(220px, 1.4fr) auto;
+  margin-bottom: 18px;
+  padding: 16px;
+}
+
+.memberForm label {
+  color: var(--muted);
+  display: grid;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 7px;
+}
+
+.memberForm input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  min-height: 40px;
+  padding: 0 12px;
+}
+
 .memberTable {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -536,12 +634,16 @@ button {
   align-items: center;
   display: grid;
   gap: 12px;
-  grid-template-columns: 1.4fr 0.8fr 0.8fr 0.8fr;
+  grid-template-columns: minmax(160px, 1.25fr) minmax(90px, 0.7fr) minmax(76px, 0.6fr) minmax(110px, 0.8fr) minmax(105px, 0.8fr) minmax(170px, 1.25fr);
   min-height: 58px;
   padding: 10px 14px;
 }
 
 .memberRow + .memberRow {
+  border-top: 1px solid var(--border);
+}
+
+.memberBody {
   border-top: 1px solid var(--border);
 }
 
@@ -553,9 +655,35 @@ button {
   min-height: 42px;
 }
 
-.memberRow span:first-child {
+.memberRow > span:first-child {
   display: grid;
   gap: 2px;
+}
+
+.memberToggle {
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.memberEmpty {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.syncHistory {
+  display: grid;
+  gap: 5px;
+}
+
+.syncHistory small {
+  display: grid;
+  gap: 1px;
+  overflow-wrap: anywhere;
+}
+
+.successText {
+  color: var(--accent-dark);
+  font-weight: 700;
 }
 
 .status.ok {
@@ -571,10 +699,460 @@ button {
   max-width: 720px;
 }
 
+.connectPage {
+  min-height: 100vh;
+  padding-bottom: 32px;
+}
+
+.connectTopbar {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 1180px;
+}
+
+.connectLayout {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(240px, 0.75fr) minmax(0, 1.45fr);
+  margin: 24px auto 0;
+  max-width: 1180px;
+  padding: 0 32px;
+}
+
+.connectGuide,
+.connectSurface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 40px;
+}
+
+.connectGuide {
+  align-self: start;
+  padding: 28px;
+}
+
+.connectGuideIcon {
+  align-items: center;
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: inline-flex;
+  height: 48px;
+  justify-content: center;
+  margin-bottom: 24px;
+  width: 48px;
+}
+
+.connectGuide h2 {
+  font-size: clamp(24px, 3vw, 34px);
+  letter-spacing: 0.03em;
+  line-height: 1.35;
+  margin: 8px 0 28px;
+}
+
+.connectGuide ol {
+  display: grid;
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.connectGuide li {
+  align-items: center;
+  display: grid;
+  font-size: 14px;
+  font-weight: 700;
+  gap: 12px;
+  grid-template-columns: 34px 1fr;
+  line-height: 1.55;
+}
+
+.connectGuide li > span {
+  align-items: center;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.connectGuideNote {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 28px 0 0;
+  padding-top: 18px;
+}
+
+.connectSurface {
+  margin: 0;
+  min-height: 390px;
+  padding: 32px;
+}
+
+.connectionNavigation {
+  margin-top: 20px;
+}
+
+.connectionActions,
+.connectionDetails {
+  align-items: flex-start;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 16px;
+  margin-top: 26px;
+  padding-top: 24px;
+}
+
+.connectionActions .primaryButton,
+.connectedActionBar .primaryButton,
+.connectedActionBar .secondaryButton {
+  justify-self: start;
+  min-height: 46px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+.connectedActionBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.connectionStatus {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  margin: 0;
+}
+
+.statusDot {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  height: 10px;
+  width: 10px;
+}
+
+.connectionNotice {
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  margin: 20px 0 0;
+  padding: 14px 16px;
+}
+
+.connectionNotice.error {
+  background: #fff0ee;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.connectionNotice.success {
+  color: var(--accent-dark);
+}
+
+.connectionAccount {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.connectionAccount > svg {
+  color: var(--accent-dark);
+}
+
+.connectionAccount > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.connectionAccount span,
+.connectionSync,
+.disconnectDialog p {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.connectionSync {
+  margin: 0;
+}
+
+.disconnectDialog {
+  background: #fff9f7;
+  border: 1px solid var(--danger);
+  border-radius: 24px;
+  display: grid;
+  gap: 10px;
+  max-width: 560px;
+  padding: 18px;
+}
+
+.disconnectDialog p {
+  margin: 0;
+}
+
+.disconnectActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.dangerButton {
+  align-items: center;
+  background: var(--danger);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.dangerButton:not(:disabled):hover {
+  background: #fff;
+  color: var(--danger);
+}
+
+.loginPage {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 40px 24px;
+  position: relative;
+}
+
+.loginAccent {
+  background: var(--accent);
+  border: 1px solid #000;
+  border-radius: 999px;
+  height: 64px;
+  position: absolute;
+  transform: rotate(-18deg);
+  width: 260px;
+}
+
+.loginAccentTop {
+  right: -70px;
+  top: 9%;
+}
+
+.loginAccentBottom {
+  bottom: 8%;
+  left: -80px;
+  transform: rotate(18deg);
+}
+
+.loginCard {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 40px;
+  max-width: 620px;
+  padding: 52px;
+  position: relative;
+  text-align: center;
+  width: 100%;
+  z-index: 1;
+}
+
+.embeddedLoginCard {
+  align-self: start;
+  max-width: none;
+  padding: 32px;
+}
+
+.loginCard.embeddedLoginCard h2 {
+  font-size: clamp(28px, 4vw, 38px);
+}
+
+.loginBadge {
+  align-items: center;
+  background: var(--surface-strong);
+  border: 1px solid #000;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  letter-spacing: 0.05em;
+  padding: 8px 14px;
+}
+
+.loginEyebrow {
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  margin: 32px 0 10px;
+}
+
+.loginCard h1,
+.loginCard h2 {
+  font-size: clamp(32px, 6vw, 48px);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.loginDescription {
+  color: var(--muted);
+  line-height: 1.9;
+  margin: 24px auto 0;
+}
+
+.loginDivider {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 16px;
+  margin: 34px 0 20px;
+}
+
+.loginDivider::before,
+.loginDivider::after {
+  background: #cfd4d3;
+  content: "";
+  flex: 1;
+  height: 1px;
+}
+
+.microsoftSignInButton {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 999px;
+  display: flex;
+  justify-content: center;
+  min-height: 76px;
+  padding: 14px 28px;
+  width: 100%;
+}
+
+.microsoftSignInButton:not(:disabled):hover {
+  background: var(--surface-strong);
+}
+
+.microsoftSignInButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.microsoftMark {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 2px;
+  grid-template-columns: repeat(2, 14px);
+  margin-right: 12px;
+}
+
+.microsoftMark > span {
+  height: 14px;
+  width: 14px;
+}
+
+.microsoftRed {
+  background: #f25022;
+}
+
+.microsoftGreen {
+  background: #7fba00;
+}
+
+.microsoftBlue {
+  background: #00a4ef;
+}
+
+.microsoftYellow {
+  background: #ffb900;
+}
+
+.microsoftButtonText {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 20px;
+  gap: 16px;
+  justify-content: center;
+  letter-spacing: 0.04em;
+}
+
+.microsoftButtonText strong {
+  color: #666;
+  font-size: 22px;
+}
+
+.loginStatus {
+  align-items: center;
+  display: flex;
+  font-weight: 800;
+  gap: 12px;
+  justify-content: center;
+  margin: 44px 0 22px;
+}
+
+.loginSpinner {
+  animation: login-spin 800ms linear infinite;
+  border: 3px solid #cdeee9;
+  border-radius: 50%;
+  border-top-color: var(--accent);
+  height: 24px;
+  width: 24px;
+}
+
+.loginError {
+  background: #fff0ee;
+  border: 1px solid var(--danger);
+  border-radius: 18px;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 700;
+  margin: 18px 0 0;
+  padding: 12px 16px;
+}
+
+.loginFootnote {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 24px 0 0;
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 760px) {
   .topbar {
     align-items: flex-start;
     flex-direction: column;
+    margin: 18px 18px 0;
     padding: 18px;
   }
 
@@ -587,8 +1165,51 @@ button {
     margin: 18px;
   }
 
+  .connectTopbar {
+    margin-left: 18px;
+    margin-right: 18px;
+  }
+
+  .connectLayout {
+    grid-template-columns: 1fr;
+    padding: 0 18px;
+  }
+
+  .connectGuide,
+  .connectSurface,
+  .embeddedLoginCard {
+    border-radius: 32px;
+    margin: 0;
+    padding: 24px 20px;
+  }
+
+  .connectGuide h2 br {
+    display: none;
+  }
+
+  .connectionActions .primaryButton,
+  .connectedActionBar .primaryButton,
+  .connectedActionBar .secondaryButton,
+  .disconnectActions button {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .connectedActionBar {
+    display: grid;
+  }
+
+  .appNavigation {
+    display: grid;
+    width: 100%;
+  }
+
   .eventRow,
   .memberRow {
+    grid-template-columns: 1fr;
+  }
+
+  .memberForm {
     grid-template-columns: 1fr;
   }
 
@@ -627,5 +1248,27 @@ button {
 
   .timeGridScroller {
     max-height: 70vh;
+  }
+
+  .loginPage {
+    padding: 24px 16px;
+  }
+
+  .loginCard {
+    border-radius: 32px;
+    padding: 36px 22px;
+  }
+
+  .microsoftSignInButton {
+    padding: 14px 18px;
+  }
+
+  .microsoftButtonText {
+    font-size: 17px;
+    gap: 8px;
+  }
+
+  .microsoftButtonText strong {
+    font-size: 19px;
   }
 }

@@ -2,8 +2,8 @@
 node_modules/
 coverage/
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.pem
 *.key
 *.p8
@@ -12,12 +12,13 @@ coverage/
 *.cer
 serviceAccount*.json
 *service-account*.json
-firebase-adminsdk*.json
+*firebase-adminsdk*.json
 google-application-credentials*.json
 credentials.json
 client_secret*.json
 secrets/
 .secrets/
+.firebase/
 firebase-debug.log
 firestore-debug.log
 ui-debug.log

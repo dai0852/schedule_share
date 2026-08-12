@@ -56,8 +56,8 @@ export async function requireAppUser(request: Request): Promise<AppUser> {
   };
 }
 
-function isDemoAuthAllowed(): boolean {
-  return process.env.ALLOW_DEMO_AUTH === "true";
+export function isDemoAuthAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.ALLOW_DEMO_AUTH === "true";
 }
 
 function getRoleForEmail(email?: string, claimRole?: UserRole): UserRole {

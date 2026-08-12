@@ -1,5 +1,5 @@
+import { AppNavigation } from "@/components/AppNavigation";
 import { AdminMembers } from "@/components/AdminMembers";
-import { salesMembers } from "@/data/demo";
 
 export default function AdminPage() {
   return (
@@ -9,8 +9,9 @@ export default function AdminPage() {
           <p className="eyebrow">管理</p>
           <h1>営業メンバー設定</h1>
         </div>
+        <AppNavigation showCalendar />
       </header>
-      <AdminMembers initialMembers={salesMembers} />
+      <AdminMembers />
     </main>
   );
 }

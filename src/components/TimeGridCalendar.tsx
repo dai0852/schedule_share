@@ -7,7 +7,7 @@ import {
   layoutTimedEvents,
   toDayKey,
 } from "@/domain/calendar";
-import type { NormalizedEvent } from "@/domain/schedule";
+import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
 
 const HOUR_HEIGHT = 48;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -92,6 +92,9 @@ function EventCard({ event, compact = false }: { event: NormalizedEvent; compact
       className={`calendarEventCard ${event.source}`}
       title={`${event.title} / ${event.ownerName}`}
     >
+      <span className="eventSourceLabel" aria-label={`予定元: ${CALENDAR_SOURCE_LABELS[event.source]}`}>
+        {CALENDAR_SOURCE_LABELS[event.source]}
+      </span>
       {!compact ? (
         <time>
           {format(new Date(event.start), "HH:mm")}–{format(new Date(event.end), "HH:mm")}
