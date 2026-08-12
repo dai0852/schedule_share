@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNavigation } from "@/components/AppNavigation";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LoginScreen } from "@/components/LoginScreen";
+import { MemberScheduleGrid } from "@/components/MemberScheduleGrid";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { TimeGridCalendar } from "@/components/TimeGridCalendar";
 import { getCalendarRange, getVisibleDays, moveSelectedDate, type ViewMode } from "@/domain/calendar";
@@ -48,9 +49,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const [canManageGoogle, setCanManageGoogle] = useState(false);
   const [canManageMembers, setCanManageMembers] = useState(false);
   const [events, setEvents] = useState<NormalizedEvent[]>([]);
-  const [mode, setMode] = useState<ViewMode>("week");
+  const [mode, setMode] = useState<ViewMode>("members");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
-  const [selectedOwner, setSelectedOwner] = useState("all");
+  const [deselectedOwnerIds, setDeselectedOwnerIds] = useState<string[]>([]);
   const [selectedSource, setSelectedSource] = useState<"all" | CalendarSource>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           setLoading(false);
           setMembersError(null);
           setError(null);
-          setSelectedOwner("all");
+          setDeselectedOwnerIds([]);
         },
         () => {
           authGeneration.current += 1;
@@ -142,7 +143,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
       setMembers([]);
       setMembersLoading(false);
       setMembersError(null);
-      setSelectedOwner("all");
+      setDeselectedOwnerIds([]);
       return;
     }
     if (!canLoad) return;
@@ -166,13 +167,13 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
         );
         if (controller.signal.aborted || authGeneration.current !== generation) return;
         setMembers(nextMembers);
-        setSelectedOwner((current) => current === "all" || nextMembers.some((item) => item.id === current)
-          ? current
-          : "all");
+        setDeselectedOwnerIds((current) => current.filter(
+          (id) => nextMembers.some((item) => item.id === id),
+        ));
       } catch {
         if (controller.signal.aborted || authGeneration.current !== generation) return;
         setMembers([]);
-        setSelectedOwner("all");
+        setDeselectedOwnerIds([]);
         setMembersError("担当者一覧を取得できませんでした。");
       } finally {
         if (!controller.signal.aborted && authGeneration.current === generation) setMembersLoading(false);
@@ -238,7 +239,6 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           start: range.start.toISOString(),
           end: range.end.toISOString(),
         });
-        if (selectedOwner !== "all") params.set("ownerUserId", selectedOwner);
         if (selectedSource !== "all") params.set("source", selectedSource);
         const headers = await authorizationHeaders(firebaseReady, allowDemoAuth, authenticatedUser);
         if (controller.signal.aborted || authGeneration.current !== generation) return;
@@ -269,7 +269,6 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     firebaseUser,
     range.start,
     range.end,
-    selectedOwner,
     selectedSource,
     refreshGeneration,
   ]);
@@ -300,6 +299,10 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   }
 
   const title = getCalendarTitle(mode, selectedDate, range);
+  const availableMembers = members.length > 0 ? members : membersFromEvents(events);
+  const deselectedOwnerIdSet = new Set(deselectedOwnerIds);
+  const visibleEvents = events.filter((event) => !deselectedOwnerIdSet.has(event.ownerUserId));
+  const visibleMembers = availableMembers.filter((member) => !deselectedOwnerIdSet.has(member.id));
 
   if (!firebaseReady && !allowDemoAuth) {
     return (
@@ -348,22 +351,47 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
             </div>
           </div>
 
-          <label className="selectLabel">
-            <Filter aria-hidden="true" size={16} />
-            担当者
-            <select
-              value={selectedOwner}
-              onChange={(changeEvent) => {
-                clearVisibleEvents();
-                setSelectedOwner(changeEvent.target.value);
-              }}
-            >
-              <option value="all">全員</option>
-              {members.map((item) => (
-                <option key={item.id} value={item.id}>{item.displayName}</option>
+          <fieldset className="memberFilter">
+            <legend>
+              <Filter aria-hidden="true" size={16} />
+              表示する担当者
+            </legend>
+            <div className="memberFilterSummary">
+              <span>{visibleMembers.length} / {availableMembers.length}人</span>
+              <span>
+                <button type="button" onClick={() => setDeselectedOwnerIds([])}>全員を選択</button>
+                <button
+                  type="button"
+                  onClick={() => setDeselectedOwnerIds(availableMembers.map((member) => member.id))}
+                >
+                  選択を解除
+                </button>
+              </span>
+            </div>
+            <div className="memberFilterList">
+              {availableMembers.map((member) => (
+                <label className="memberFilterOption" key={member.id}>
+                  <input
+                    type="checkbox"
+                    aria-label={member.department
+                      ? `${member.displayName} / ${member.department}`
+                      : member.displayName}
+                    checked={!deselectedOwnerIdSet.has(member.id)}
+                    onChange={() => setDeselectedOwnerIds((current) => current.includes(member.id)
+                      ? current.filter((id) => id !== member.id)
+                      : [...current, member.id])}
+                  />
+                  <span className="memberAvatar small" aria-hidden="true">
+                    {member.displayName.trim().slice(0, 1)}
+                  </span>
+                  <span>
+                    <strong>{member.displayName}</strong>
+                    <small>{member.department}</small>
+                  </span>
+                </label>
               ))}
-            </select>
-          </label>
+            </div>
+          </fieldset>
 
           <label className="selectLabel">
             <Filter aria-hidden="true" size={16} />
@@ -412,7 +440,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           <CalendarToolbar
             title={title}
             mode={mode}
-            eventCount={events.length}
+            eventCount={visibleEvents.length}
             onToday={() => {
               clearVisibleEvents();
               setSelectedDate(new Date());
@@ -428,13 +456,19 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           />
           {error ? <p className="errorText">{error}</p> : null}
           {loading ? <p className="loadingText">予定を読み込んでいます…</p> : null}
-          {mode === "month" ? (
-            <MonthCalendar days={visibleDays} selectedDate={selectedDate} events={events} />
+          {mode === "members" ? (
+            <MemberScheduleGrid days={visibleDays} events={visibleEvents} members={visibleMembers} />
+          ) : mode === "month" ? (
+            <MonthCalendar days={visibleDays} selectedDate={selectedDate} events={visibleEvents} />
           ) : (
-            <TimeGridCalendar days={visibleDays} events={events} />
+            <TimeGridCalendar days={visibleDays} events={visibleEvents} />
           )}
-          {!loading && !error && events.length === 0 ? (
-            <p className="emptyText calendarEmpty">表示対象の予定はありません。</p>
+          {!loading && !error && visibleEvents.length === 0 ? (
+            <p className="emptyText calendarEmpty">
+              {availableMembers.length > 0 && visibleMembers.length === 0
+                ? "表示する担当者を選択してください。"
+                : "表示対象の予定はありません。"}
+            </p>
           ) : null}
         </section>
       </section>
@@ -674,7 +708,7 @@ function getCalendarTitle(
   range: { start: Date; end: Date },
 ): string {
   if (mode === "day") return format(selectedDate, "yyyy年M月d日 EEEE", { locale: ja });
-  if (mode === "week") {
+  if (mode === "members" || mode === "week") {
     return `${format(range.start, "yyyy年M月d日", { locale: ja })} – ${format(
       new Date(range.end.getTime() - 1),
       "M月d日",
@@ -682,4 +716,18 @@ function getCalendarTitle(
     )}`;
   }
   return format(selectedDate, "yyyy年M月", { locale: ja });
+}
+
+function membersFromEvents(events: NormalizedEvent[]): PublicSalesMember[] {
+  const membersById = new Map<string, PublicSalesMember>();
+  for (const event of events) {
+    if (!membersById.has(event.ownerUserId)) {
+      membersById.set(event.ownerUserId, {
+        id: event.ownerUserId,
+        displayName: event.ownerName,
+        department: "",
+      });
+    }
+  }
+  return [...membersById.values()];
 }

@@ -29,6 +29,7 @@ describe("calendar range", () => {
   const selected = new Date("2026-06-19T12:00:00+09:00");
 
   it.each([
+    ["members", "2026-06-14T15:00:00.000Z", "2026-06-21T15:00:00.000Z", 7],
     ["day", "2026-06-18T15:00:00.000Z", "2026-06-19T15:00:00.000Z", 1],
     ["week", "2026-06-14T15:00:00.000Z", "2026-06-21T15:00:00.000Z", 7],
     ["month", "2026-05-31T15:00:00.000Z", "2026-07-05T15:00:00.000Z", 35],
@@ -41,6 +42,7 @@ describe("calendar range", () => {
 
   it("moves by the active view unit across month and year boundaries", () => {
     expect(moveSelectedDate(selected, "day", 1).getDate()).toBe(20);
+    expect(moveSelectedDate(selected, "members", -1).getDate()).toBe(12);
     expect(moveSelectedDate(selected, "week", -1).getDate()).toBe(12);
     expect(moveSelectedDate(selected, "month", 1).getMonth()).toBe(6);
     expect(moveSelectedDate(new Date("2026-12-19T12:00:00+09:00"), "month", 1).getFullYear()).toBe(2027);

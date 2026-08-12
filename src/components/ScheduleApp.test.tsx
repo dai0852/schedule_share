@@ -36,6 +36,12 @@ const member: PublicSalesMember = {
   displayName: "田中 花子",
   department: "営業一課",
 };
+const secondMemberId = "123e4567-e89b-42d3-a456-426614174000";
+const secondMember: PublicSalesMember = {
+  id: secondMemberId,
+  displayName: "佐藤 次郎",
+  department: "営業二課",
+};
 const event: NormalizedEvent = {
   eventId: `google:${memberId}:g-1`,
   source: "google",
@@ -50,6 +56,16 @@ const event: NormalizedEvent = {
   isOnlineMeeting: false,
   visibility: "team",
   updatedAt: "2026-08-10T12:00:00.000Z",
+};
+const secondEvent: NormalizedEvent = {
+  ...event,
+  eventId: `microsoft:${secondMemberId}:m-1`,
+  source: "microsoft",
+  sourceEventId: "m-1",
+  ownerUserId: secondMemberId,
+  ownerName: "佐藤 次郎",
+  calendarId: "outlook",
+  title: "提案準備",
 };
 
 function jsonResponse(body: unknown, status = 200, headers?: HeadersInit): Response {
@@ -172,8 +188,8 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("other-dept-token", "hr@studio-csa.com")));
 
-    expect(await screen.findByRole("option", { name: "田中 花子" })).toHaveValue(memberId);
-    expect(screen.queryByRole("option", { name: /デモ/ })).not.toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" })).toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: /デモ/ })).not.toBeInTheDocument();
     expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
     const apiCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/"));
     expect(apiCalls).toHaveLength(3);
@@ -226,30 +242,45 @@ describe("ScheduleApp", () => {
 
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
-    await screen.findByRole("option", { name: "田中 花子" });
+    await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" });
 
     expect(screen.queryByRole("link", { name: "Googleカレンダー接続" })).not.toBeInTheDocument();
   });
 
-  it("担当者選択でownerUserIdを付け、予定元選択でsourceを付けたままBearerを維持する", async () => {
+  it("担当ビューで複数担当者を選択し、再取得せず表示対象を切り替える", async () => {
     vi.useRealTimers();
     const auth = captureAuthState();
-    const fetchMock = installApiFetch();
+    const fetchMock = installApiFetch({
+      members: { members: [member, secondMember] },
+      events: { events: [event, secondEvent] },
+    });
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("filter-token")));
-    await screen.findByRole("option", { name: "田中 花子" });
+    const firstMemberCheckbox = await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" });
+    const secondMemberCheckbox = screen.getByRole("checkbox", { name: "佐藤 次郎 / 営業二課" });
+    expect(screen.getByRole("button", { name: "担当" })).toHaveAttribute("aria-pressed", "true");
+    expect(firstMemberCheckbox).toBeChecked();
+    expect(secondMemberCheckbox).toBeChecked();
+    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
+    expect(screen.getByText("提案準備")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("担当者"), { target: { value: memberId } });
-    await act(async () => {});
-    let lastEventCall = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1);
-    expect(String(lastEventCall?.[0])).toContain(`ownerUserId=${memberId}`);
-    expect(lastEventCall?.[1]).toMatchObject({ headers: { authorization: "Bearer filter-token" } });
+    const eventCallsBeforeSelection = fetchMock.mock.calls
+      .filter(([url]) => String(url).startsWith("/api/events")).length;
+    fireEvent.click(firstMemberCheckbox);
 
+    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expect(screen.getByText("提案準備")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")))
+      .toHaveLength(eventCallsBeforeSelection);
+
+    fireEvent.click(screen.getByRole("button", { name: "全員を選択" }));
+    expect(firstMemberCheckbox).toBeChecked();
+    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "teams" } });
     await act(async () => {});
-    lastEventCall = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1);
+    const lastEventCall = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1);
     expect(String(lastEventCall?.[0])).toContain("source=teams");
-    expect(String(lastEventCall?.[0])).toContain(`ownerUserId=${memberId}`);
+    expect(String(lastEventCall?.[0])).not.toContain("ownerUserId");
     expect(lastEventCall?.[1]).toMatchObject({ headers: { authorization: "Bearer filter-token" } });
   });
 
@@ -265,8 +296,16 @@ describe("ScheduleApp", () => {
     await act(async () => {});
 
     expect(screen.getByText("顧客訪問")).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "田中 花子" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("option", { name: "全員" })).toHaveLength(1);
+    const demoMemberCheckbox = screen.getByRole("checkbox", { name: "田中 花子" });
+    expect(demoMemberCheckbox).toBeChecked();
+    const eventCallsBeforeSelection = fetchMock.mock.calls
+      .filter(([url]) => String(url).startsWith("/api/events")).length;
+    fireEvent.click(demoMemberCheckbox);
+    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")))
+      .toHaveLength(eventCallsBeforeSelection);
+    fireEvent.click(screen.getByRole("button", { name: "全員を選択" }));
+    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Googleカレンダー接続" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/members")).toHaveLength(0);
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/me/calendar-connection")).toHaveLength(0);
@@ -332,7 +371,7 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(signedInUser()));
 
     expect(await screen.findByText("担当者一覧を取得できませんでした。")).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "田中 花子" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "田中 花子 / 営業一課" })).not.toBeInTheDocument();
   });
 
   it("Content-Lengthが公開予定byte契約を超えたresponseを本文読取前に拒否する", async () => {
@@ -382,7 +421,7 @@ describe("ScheduleApp", () => {
     expect(chunkCount).toBeLessThanOrEqual(9);
   });
 
-  it("filter変更で新requestがpending・errorでも旧filterの予定を即時に隠す", async () => {
+  it("予定元filter変更で新requestがpending・errorでも旧filterの予定を即時に隠す", async () => {
     vi.useRealTimers();
     const auth = captureAuthState();
     const nextEvents = deferred<Response>();
@@ -404,7 +443,7 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(signedInUser()));
     expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("担当者"), { target: { value: memberId } });
+    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "google" } });
 
     expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
     expect(screen.getByText("予定を読み込んでいます…")).toBeInTheDocument();
@@ -483,11 +522,11 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(signedInUser("old-token", "old@studio-csa.com")));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/members", expect.anything()));
     await act(async () => auth.emit(signedInUser("new-token", "new@studio-csa.com")));
-    expect(await screen.findByRole("option", { name: "佐藤 次郎" })).toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: "佐藤 次郎 / 営業一課" })).toBeInTheDocument();
     await act(async () => oldMembers.resolve(jsonResponse({ members: [member] })));
 
-    expect(screen.queryByRole("option", { name: "田中 花子" })).not.toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "佐藤 次郎" })).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "田中 花子 / 営業一課" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "佐藤 次郎 / 営業一課" })).toBeInTheDocument();
   });
 
   it("認証ユーザー切替後に旧Google接続状態が完了しても旧ユーザーの導線を表示しない", async () => {
@@ -528,7 +567,7 @@ describe("ScheduleApp", () => {
     const fetchMock = installApiFetch();
 
     render(<StrictMode><ScheduleApp /></StrictMode>);
-    expect(await screen.findByRole("option", { name: "田中 花子" })).toBeInTheDocument();
+    expect(await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" })).toBeInTheDocument();
 
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/members")).toHaveLength(1);
     expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events"))).toHaveLength(1);
@@ -545,7 +584,7 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(null));
     expect(screen.getByRole("button", { name: "Microsoft でサインイン" })).toBeInTheDocument();
     expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "田中 花子" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: "田中 花子 / 営業一課" })).not.toBeInTheDocument();
   });
 
   it("Microsoft sign-in失敗は固定文言にし二重requestを防ぐ", async () => {

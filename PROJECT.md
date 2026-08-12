@@ -13,6 +13,8 @@
 - Microsoft 365/Teams予定は管理者承認済みのGraph権限で読み取る。
 - 同一時間帯の予定は重複排除せず両方表示する。
 - 予定はGoogleカレンダー型の日・週・月表示で閲覧でき、表示期間を前後または今日へ移動できる。
+- 担当表示では営業メンバーを行、1週間の日付を列にして予定を横方向に比較できる。
+- 表示する担当者は複数選択でき、選択変更は取得済み予定へ即時反映する。
 
 ## Technical Stack
 - Next.js App Router
@@ -40,6 +42,8 @@
 Cloud Schedulerは5分間隔で内部同期APIを呼び、GoogleとMicrosoftをメンバー・予定元ごとに独立して同期する。一方の予定元が失敗しても他方の成功を保持し、全ページ取得に成功した予定元だけFirestoreを差し替える。予定の正本は各providerであり、アプリは読み取り専用の共有ビューを提供する。本文、参加者、添付、会議参加URLは取得・保存・返却せず、非公開予定は件名を「予定あり」、場所を空欄にする。
 
 閲覧APIはFirebase IDトークン、Microsoftプロバイダー、許可済み社内ドメインを検証する。同じ会社の他部署ユーザーは閲覧者として利用できるが、共有対象メンバーや管理者には自動昇格しない。Firestoreのクライアントrulesはすべて拒否し、Next.jsサーバーだけがAdmin SDKとIAMでアクセスする。本番のApp Hostingは組み込みサービスアカウントのApplication Default Credentialsを使用し、サービスアカウントJSONを配置しない。
+
+閲覧画面の初期表示は1週間の担当ビューとし、担当者を固定した左列、月曜日から日曜日までの横列、日ごとの予定カードで構成する。日・週・月表示も維持する。担当者の複数選択はクライアント側の表示フィルターとして扱い、APIと `NormalizedEvent` の公開契約は変更しない。
 
 本番公開originは会社が所有しSearch Consoleで確認済みのApp Hostingカスタムドメインとする。Google OAuth callback、公開ホームページ、プライバシーポリシー、Firebase Authenticationの承認済みドメインをこの会社ドメインへ揃え、Firebase発行の `*.hosted.app` はTesting・開発確認に限定する。App Hostingのsecretは対象バックエンドとリージョンを明示してアクセスを付与し、Consoleが同名YAML変数を上書きしていないことを監査する。Cloud Schedulerの `x-sync-secret` はjob閲覧権限から見える可能性があるため、fullView権限を最小化し、監査と即時ローテーション手順を維持する。
 

@@ -25,3 +25,4 @@ ui-debug.log
 *.tsbuildinfo
 .superpowers/
 .worktrees/
+.playwright-cli/

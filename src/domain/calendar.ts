@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import type { NormalizedEvent } from "./schedule";
 
-export type ViewMode = "day" | "week" | "month";
+export type ViewMode = "members" | "day" | "week" | "month";
 
 export interface CalendarRange {
   start: Date;
@@ -38,7 +38,7 @@ export function getCalendarRange(mode: ViewMode, selectedDate: Date): CalendarRa
     return { start, end: addDays(start, 1) };
   }
 
-  if (mode === "week") {
+  if (mode === "members" || mode === "week") {
     const start = startOfWeek(selectedDate, WEEK_OPTIONS);
     return { start, end: addWeeks(start, 1) };
   }
@@ -50,7 +50,7 @@ export function getCalendarRange(mode: ViewMode, selectedDate: Date): CalendarRa
 
 export function moveSelectedDate(date: Date, mode: ViewMode, amount: number): Date {
   if (mode === "day") return addDays(date, amount);
-  if (mode === "week") return addWeeks(date, amount);
+  if (mode === "members" || mode === "week") return addWeeks(date, amount);
   return addMonths(date, amount);
 }
 

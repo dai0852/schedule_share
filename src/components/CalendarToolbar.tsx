@@ -11,6 +11,7 @@ interface CalendarToolbarProps {
 }
 
 const MODE_LABELS: Record<ViewMode, string> = {
+  members: "担当",
   day: "日",
   week: "週",
   month: "月",
@@ -41,7 +42,7 @@ export function CalendarToolbar({
 
       <div className="calendarToolbarActions">
         <div className="controlGroup calendarMode" aria-label="表示切替">
-          {(["day", "week", "month"] as const).map((viewMode) => (
+          {(["members", "day", "week", "month"] as const).map((viewMode) => (
             <button
               key={viewMode}
               className={mode === viewMode ? "active" : ""}

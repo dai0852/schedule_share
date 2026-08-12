@@ -210,6 +210,126 @@ a:focus-visible {
   padding: 0 10px;
 }
 
+.memberFilter {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  margin: 0;
+  min-width: 0;
+  padding: 12px;
+}
+
+.memberFilter legend {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.memberFilterSummary {
+  align-items: center;
+  display: flex;
+  font-size: 11px;
+  font-weight: 800;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.memberFilterSummary > span:last-child {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.memberFilterSummary button {
+  background: transparent;
+  border: 0;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+  padding: 0;
+}
+
+.memberFilterSummary button:hover {
+  text-decoration: underline;
+  transform: none;
+}
+
+.memberFilterList {
+  display: grid;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.memberFilterOption {
+  align-items: center;
+  border-radius: 14px;
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  padding: 7px;
+}
+
+.memberFilterOption:hover {
+  background: #f3f8f7;
+}
+
+.memberFilterOption input {
+  accent-color: var(--accent);
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.memberFilterOption > span:last-child,
+.memberScheduleMember > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.memberFilterOption strong,
+.memberFilterOption small,
+.memberScheduleMember strong,
+.memberScheduleMember small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberFilterOption strong {
+  font-size: 12px;
+}
+
+.memberFilterOption small,
+.memberScheduleMember small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.memberAvatar {
+  align-items: center;
+  background: var(--surface-strong);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--accent-dark);
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 16px;
+  font-weight: 900;
+  height: 38px;
+  justify-content: center;
+  width: 38px;
+}
+
+.memberAvatar.small {
+  font-size: 11px;
+  height: 28px;
+  width: 28px;
+}
+
 .primaryButton {
   background: var(--accent);
   border: 1px solid var(--border);
@@ -273,8 +393,8 @@ a:focus-visible {
 }
 
 .calendarMode {
-  grid-template-columns: repeat(3, 1fr);
-  min-width: 150px;
+  grid-template-columns: repeat(4, 1fr);
+  min-width: 204px;
 }
 
 .compactButton {
@@ -481,6 +601,164 @@ a:focus-visible {
   padding: 4px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.memberScheduleScroller {
+  max-height: calc(100vh - 190px);
+}
+
+.memberScheduleScroller:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.memberScheduleGrid {
+  min-width: 1240px;
+}
+
+.memberScheduleRow {
+  display: grid;
+  grid-template-columns: 168px repeat(var(--calendar-columns), minmax(152px, 1fr));
+  min-width: 1240px;
+}
+
+.memberScheduleHeader {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.memberScheduleCorner,
+.memberScheduleDayHeader,
+.memberScheduleMember,
+.memberScheduleCell {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+
+.memberScheduleCorner,
+.memberScheduleDayHeader {
+  min-height: 54px;
+  padding: 8px;
+}
+
+.memberScheduleCorner {
+  align-items: center;
+  display: flex;
+  font-size: 12px;
+  font-weight: 800;
+  left: 0;
+  position: sticky;
+  z-index: 7;
+}
+
+.memberScheduleDayHeader {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+  text-align: center;
+}
+
+.memberScheduleDayHeader span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.memberScheduleDayHeader strong {
+  align-items: center;
+  display: inline-flex;
+  font-size: 17px;
+  height: 30px;
+  justify-content: center;
+  width: 30px;
+}
+
+.memberScheduleDayHeader.today {
+  background: var(--surface-strong);
+  color: var(--accent-dark);
+}
+
+.memberScheduleDayHeader.today strong {
+  background: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: #000;
+}
+
+.memberScheduleMember {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+  left: 0;
+  min-height: 128px;
+  padding: 12px;
+  position: sticky;
+  z-index: 3;
+}
+
+.memberScheduleMember strong {
+  font-size: 13px;
+}
+
+.memberScheduleCell {
+  display: grid;
+  gap: 5px;
+  min-height: 128px;
+  padding: 6px;
+  align-content: start;
+}
+
+.memberScheduleRow:nth-child(odd) .memberScheduleMember,
+.memberScheduleRow:nth-child(odd) .memberScheduleCell {
+  background: #fbfcfc;
+}
+
+.memberScheduleEvent {
+  border-left: 3px solid currentcolor;
+  border-radius: 7px;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 7px;
+}
+
+.memberScheduleEvent.google {
+  background: #e8f0fe;
+  color: #174ea6;
+}
+
+.memberScheduleEvent.microsoft {
+  background: #e7f0ff;
+  color: #1b4f9c;
+}
+
+.memberScheduleEvent.teams {
+  background: #eeeafd;
+  color: #4b3ca7;
+}
+
+.memberScheduleEventMeta {
+  align-items: center;
+  display: flex;
+  font-size: 9px;
+  font-weight: 800;
+  gap: 6px;
+  justify-content: space-between;
+}
+
+.memberScheduleEvent > strong,
+.memberScheduleLocation {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memberScheduleLocation {
+  opacity: 0.78;
 }
 
 .moreEvents,
@@ -1247,6 +1525,10 @@ a:focus-visible {
   }
 
   .timeGridScroller {
+    max-height: 70vh;
+  }
+
+  .memberScheduleScroller {
     max-height: 70vh;
   }
 
