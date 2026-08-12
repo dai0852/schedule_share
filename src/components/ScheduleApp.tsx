@@ -37,6 +37,8 @@ interface ScheduleAppProps {
   allowDemoAuth?: boolean;
 }
 
+type DisplayCalendarSource = "all" | "google" | "microsoft";
+
 export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const firebaseReady = hasFirebaseClientConfig();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -52,7 +54,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const [mode, setMode] = useState<ViewMode>("members");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [deselectedOwnerIds, setDeselectedOwnerIds] = useState<string[]>([]);
-  const [selectedSource, setSelectedSource] = useState<"all" | CalendarSource>("all");
+  const [selectedSource, setSelectedSource] = useState<DisplayCalendarSource>("all");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
@@ -301,7 +303,10 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const title = getCalendarTitle(mode, selectedDate, range);
   const availableMembers = members.length > 0 ? members : membersFromEvents(events);
   const deselectedOwnerIdSet = new Set(deselectedOwnerIds);
-  const visibleEvents = events.filter((event) => !deselectedOwnerIdSet.has(event.ownerUserId));
+  const visibleEvents = events.filter((event) => (
+    !deselectedOwnerIdSet.has(event.ownerUserId)
+    && matchesDisplaySource(event.source, selectedSource)
+  ));
   const visibleMembers = availableMembers.filter((member) => !deselectedOwnerIdSet.has(member.id));
 
   if (!firebaseReady && !allowDemoAuth) {
@@ -400,13 +405,12 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
               value={selectedSource}
               onChange={(changeEvent) => {
                 clearVisibleEvents();
-                setSelectedSource(changeEvent.target.value as "all" | CalendarSource);
+                setSelectedSource(changeEvent.target.value as DisplayCalendarSource);
               }}
             >
               <option value="all">すべて</option>
               <option value="google">Google</option>
               <option value="microsoft">Microsoft</option>
-              <option value="teams">Teams</option>
             </select>
           </label>
 
@@ -730,4 +734,13 @@ function membersFromEvents(events: NormalizedEvent[]): PublicSalesMember[] {
     }
   }
   return [...membersById.values()];
+}
+
+function matchesDisplaySource(
+  source: CalendarSource,
+  selectedSource: DisplayCalendarSource,
+): boolean {
+  if (selectedSource === "all") return true;
+  if (selectedSource === "google") return source === "google";
+  return source === "microsoft" || source === "teams";
 }

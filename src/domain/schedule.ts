@@ -5,7 +5,7 @@ export const PUBLIC_EVENTS_RESPONSE_MAX_BYTES = 8 * 1_024 * 1_024;
 export const CALENDAR_SOURCE_LABELS: Record<CalendarSource, string> = {
   google: "Google",
   microsoft: "Microsoft",
-  teams: "Teams",
+  teams: "Microsoft",
 };
 
 export interface NormalizedEvent {
@@ -99,16 +99,14 @@ export function mapMicrosoftEvent(
   owner: EventOwnerContext,
 ): NormalizedEvent {
   const sourceEventId = requireSourceEventId(event.id);
-  const provider = event.onlineMeetingProvider?.toLowerCase() ?? "";
   const location = event.location?.displayName ?? "";
-  const isTeams = provider.includes("teams") || location.toLowerCase().includes("teams");
   const visibility: EventVisibility = event.sensitivity === undefined || event.sensitivity === "normal"
     ? "team"
     : "private";
 
   return {
-    eventId: `${isTeams ? "teams" : "microsoft"}:${owner.ownerUserId}:${sourceEventId}`,
-    source: isTeams ? "teams" : "microsoft",
+    eventId: `microsoft:${owner.ownerUserId}:${sourceEventId}`,
+    source: "microsoft",
     sourceEventId,
     ownerUserId: owner.ownerUserId,
     ownerName: owner.ownerName,
@@ -129,12 +127,17 @@ export function filterEvents(events: NormalizedEvent[], filters: EventFilters): 
 
   return events.filter((event) => {
     if (filters.ownerUserId && event.ownerUserId !== filters.ownerUserId) return false;
-    if (filters.source && event.source !== filters.source) return false;
+    if (filters.source && !matchesSourceFilter(event.source, filters.source)) return false;
 
     const eventStartMs = eventBoundaryToEpochMs(event.start);
     const eventEndMs = eventBoundaryToEpochMs(event.end);
     return eventStartMs < endMs && eventEndMs > startMs;
   });
+}
+
+function matchesSourceFilter(source: CalendarSource, filter: CalendarSource): boolean {
+  if (filter === "microsoft") return source === "microsoft" || source === "teams";
+  return source === filter;
 }
 
 export function sortEvents(events: NormalizedEvent[]): NormalizedEvent[] {

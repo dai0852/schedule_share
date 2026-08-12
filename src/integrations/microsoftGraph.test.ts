@@ -204,7 +204,7 @@ describe("fetchAllMicrosoftCalendarView", () => {
     expect(JSON.stringify(events)).not.toMatch(/役員面談|役員室|機密商談|秘密|私用|自宅|未知機密|未知場所/);
   });
 
-  it("Teams・終日・Tokyo/UTC日時を正規化しURL入り件名と場所を除去する", async () => {
+  it("Teams会議もMicrosoftとして扱い、終日・Tokyo/UTC日時を正規化してURLを除去する", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
       value: [
         validMicrosoftItem("teams", {
@@ -229,7 +229,7 @@ describe("fetchAllMicrosoftCalendarView", () => {
     const events = await fetchAllMicrosoftCalendarView(validFetchParams());
 
     expect(events[0]).toMatchObject({
-      source: "teams", title: "商談 次回", location: "", isOnlineMeeting: true,
+      source: "microsoft", title: "商談 次回", location: "", isOnlineMeeting: true,
       start: "2026-08-11T10:00:00+09:00", end: "2026-08-11T11:00:00+09:00",
     });
     expect(events[1]).toMatchObject({ start: "2026-08-12", end: "2026-08-13" });

@@ -107,6 +107,28 @@ describe("listEvents", () => {
     expect(JSON.stringify(value)).toContain("startEpochMs");
   });
 
+  it("Microsoft指定ではMicrosoft予定と旧Teams予定をFirestoreからまとめて取得する", async () => {
+    const microsoftEvent = storedEvent({
+      eventId: `microsoft:${ownerId}:microsoft-event`,
+      source: "microsoft",
+      sourceEventId: "microsoft-event",
+      calendarId: "outlook",
+    });
+    const legacyTeamsEvent = storedEvent({
+      eventId: `teams:${ownerId}:legacy-teams-event`,
+      source: "teams",
+      sourceEventId: "legacy-teams-event",
+      calendarId: "outlook",
+      isOnlineMeeting: true,
+    });
+    setDocuments([microsoftEvent, legacyTeamsEvent]);
+
+    const events = await listEvents({ ...range, source: "microsoft" });
+
+    expect(mocks.where).toHaveBeenCalledWith("source", "in", ["microsoft", "teams"]);
+    expect(events.map((event) => event.source)).toEqual(["microsoft", "teams"]);
+  });
+
   it("Firestore結果を開始日時順に返し、epochや未知fieldを公開しない", async () => {
     const later = storedEvent({
       eventId: `google:${ownerId}:event-2`,

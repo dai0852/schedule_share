@@ -60,16 +60,12 @@ export function MemberScheduleGrid({
                 </span>
               </div>
               {days.map((day) => (
-                <div
-                  className="memberScheduleCell"
+                <MemberDayCell
+                  day={day}
+                  events={memberEvents}
                   key={toDayKey(day)}
-                  role="cell"
-                  aria-label={`${member.displayName} ${format(day, "M月d日", { locale: ja })}`}
-                >
-                  {eventsForDay(memberEvents, day)
-                    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
-                    .map((event) => <MemberEventCard day={day} event={event} key={event.eventId} />)}
-                </div>
+                  memberName={member.displayName}
+                />
               ))}
             </div>
           );
@@ -77,6 +73,104 @@ export function MemberScheduleGrid({
       </div>
     </div>
   );
+}
+
+function MemberDayCell({
+  day,
+  events,
+  memberName,
+}: {
+  day: Date;
+  events: NormalizedEvent[];
+  memberName: string;
+}) {
+  const dayEvents = eventsForDay(events, day)
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const allDayEvents = dayEvents.filter(isAllDayEvent);
+  const timedGroups = groupOverlappingEvents(dayEvents.filter((event) => !isAllDayEvent(event)), day);
+
+  return (
+    <div
+      className="memberScheduleCell"
+      role="cell"
+      aria-label={`${memberName} ${format(day, "M月d日", { locale: ja })}`}
+    >
+      {allDayEvents.map((event) => (
+        <MemberEventCard day={day} event={event} key={event.eventId} />
+      ))}
+      {timedGroups.map((group) => {
+        const groupStyle = { "--member-overlap-columns": group.lanes.length } as CSSProperties;
+        const startLabel = format(new Date(group.startMs), "HH:mm");
+        const eventCount = group.lanes.reduce((count, lane) => count + lane.length, 0);
+        const positionedEvents = group.lanes
+          .flatMap((lane, laneIndex) => lane.map((interval) => ({ ...interval, laneIndex })))
+          .sort((a, b) => a.startMs - b.startMs || b.endMs - a.endMs);
+        const groupLabel = group.lanes.length > 1
+          ? `${startLabel}から重なる予定 ${eventCount}件`
+          : `${startLabel}の予定 ${eventCount}件`;
+
+        return (
+          <div
+            aria-label={groupLabel}
+            className="memberScheduleEventGroup"
+            key={`${group.startMs}:${group.lanes[0][0].event.eventId}`}
+            role="group"
+            style={groupStyle}
+          >
+            {positionedEvents.map(({ event, laneIndex }) => (
+              <div
+                className="memberScheduleEventSlot"
+                key={event.eventId}
+                style={{ gridColumn: laneIndex + 1 }}
+              >
+                <MemberEventCard day={day} event={event} />
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+interface TimedEventInterval {
+  event: NormalizedEvent;
+  startMs: number;
+  endMs: number;
+}
+
+interface TimedEventGroup {
+  startMs: number;
+  endMs: number;
+  lanes: TimedEventInterval[][];
+}
+
+function groupOverlappingEvents(events: NormalizedEvent[], day: Date): TimedEventGroup[] {
+  const intervals = events
+    .map((event) => ({ event, ...eventIntervalForDay(event, day) }))
+    .sort((a, b) => a.startMs - b.startMs || b.endMs - a.endMs);
+  const groups: TimedEventGroup[] = [];
+
+  for (const interval of intervals) {
+    const currentGroup = groups.at(-1);
+    if (!currentGroup || interval.startMs >= currentGroup.endMs) {
+      groups.push({
+        startMs: interval.startMs,
+        endMs: interval.endMs,
+        lanes: [[interval]],
+      });
+      continue;
+    }
+
+    currentGroup.endMs = Math.max(currentGroup.endMs, interval.endMs);
+    const availableLane = currentGroup.lanes.find(
+      (lane) => lane[lane.length - 1].endMs <= interval.startMs,
+    );
+    if (availableLane) availableLane.push(interval);
+    else currentGroup.lanes.push([interval]);
+  }
+
+  return groups;
 }
 
 function MemberEventCard({ day, event }: { day: Date; event: NormalizedEvent }) {
@@ -102,10 +196,20 @@ function MemberEventCard({ day, event }: { day: Date; event: NormalizedEvent }) 
 }
 
 function eventTimeForDay(event: NormalizedEvent, day: Date): string {
+  const { startMs, endMs } = eventIntervalForDay(event, day);
+  const dayEndMs = addDays(startOfDay(day), 1).getTime();
+  const endLabel = endMs === dayEndMs ? "24:00" : format(new Date(endMs), "HH:mm");
+  return `${format(new Date(startMs), "HH:mm")}–${endLabel}`;
+}
+
+function eventIntervalForDay(
+  event: NormalizedEvent,
+  day: Date,
+): { startMs: number; endMs: number } {
   const dayStart = startOfDay(day);
   const dayEnd = addDays(dayStart, 1);
-  const clippedStart = new Date(Math.max(Date.parse(event.start), dayStart.getTime()));
-  const clippedEnd = new Date(Math.min(Date.parse(event.end), dayEnd.getTime()));
-  const endLabel = clippedEnd.getTime() === dayEnd.getTime() ? "24:00" : format(clippedEnd, "HH:mm");
-  return `${format(clippedStart, "HH:mm")}–${endLabel}`;
+  return {
+    startMs: Math.max(Date.parse(event.start), dayStart.getTime()),
+    endMs: Math.min(Date.parse(event.end), dayEnd.getTime()),
+  };
 }

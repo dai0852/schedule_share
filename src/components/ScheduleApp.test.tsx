@@ -252,7 +252,18 @@ describe("ScheduleApp", () => {
     const auth = captureAuthState();
     const fetchMock = installApiFetch({
       members: { members: [member, secondMember] },
-      events: { events: [event, secondEvent] },
+      events: { events: [
+        event,
+        secondEvent,
+        {
+          ...secondEvent,
+          eventId: `teams:${secondMemberId}:legacy-teams`,
+          source: "teams",
+          sourceEventId: "legacy-teams",
+          title: "旧Teams会議",
+          isOnlineMeeting: true,
+        },
+      ] },
     });
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("filter-token")));
@@ -276,12 +287,16 @@ describe("ScheduleApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "全員を選択" }));
     expect(firstMemberCheckbox).toBeChecked();
     expect(screen.getByText("顧客訪問")).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "teams" } });
+    expect(screen.queryByRole("option", { name: "Teams" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "microsoft" } });
     await act(async () => {});
     const lastEventCall = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1);
-    expect(String(lastEventCall?.[0])).toContain("source=teams");
+    expect(String(lastEventCall?.[0])).toContain("source=microsoft");
     expect(String(lastEventCall?.[0])).not.toContain("ownerUserId");
     expect(lastEventCall?.[1]).toMatchObject({ headers: { authorization: "Bearer filter-token" } });
+    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expect(screen.getByText("提案準備")).toBeInTheDocument();
+    expect(screen.getByText("旧Teams会議")).toBeInTheDocument();
   });
 
   it("明示デモモードは担当者・接続APIを呼ばず、デモ認証で予定だけを再取得する", async () => {
@@ -456,13 +471,13 @@ describe("ScheduleApp", () => {
     vi.useRealTimers();
     const auth = captureAuthState();
     const abortedEvents = deferred<Response>();
-    const teamsEvent = {
+    const microsoftEvent = {
       ...event,
-      eventId: `teams:${memberId}:t-1`,
-      source: "teams" as const,
-      sourceEventId: "t-1",
+      eventId: `microsoft:${memberId}:m-1`,
+      source: "microsoft" as const,
+      sourceEventId: "m-1",
       calendarId: "outlook",
-      title: "Teams予定",
+      title: "Microsoft予定",
     };
     let eventRequests = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -473,7 +488,7 @@ describe("ScheduleApp", () => {
         eventRequests += 1;
         if (eventRequests === 1) return Promise.resolve(jsonResponse({ events: [event] }));
         if (eventRequests === 2) return abortedEvents.promise;
-        return Promise.resolve(jsonResponse({ events: [teamsEvent] }));
+      return Promise.resolve(jsonResponse({ events: [microsoftEvent] }));
       }
       throw new Error(`unexpected request: ${url}`);
     });
@@ -485,11 +500,11 @@ describe("ScheduleApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "月" }));
     expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
     await waitFor(() => expect(eventRequests).toBe(2));
-    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "teams" } });
-    expect(await screen.findByText("Teams予定")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "microsoft" } });
+    expect(await screen.findByText("Microsoft予定")).toBeInTheDocument();
     await act(async () => abortedEvents.resolve(jsonResponse({ events: [event] })));
 
-    expect(screen.getByText("Teams予定")).toBeInTheDocument();
+    expect(screen.getByText("Microsoft予定")).toBeInTheDocument();
     expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
   });
 

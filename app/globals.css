@@ -533,15 +533,11 @@ a:focus-visible {
 }
 
 .calendarEventCard.microsoft,
-.monthEvent.microsoft {
+.calendarEventCard.teams,
+.monthEvent.microsoft,
+.monthEvent.teams {
   background: #e7f0ff;
   color: #1b4f9c;
-}
-
-.calendarEventCard.teams,
-.monthEvent.teams {
-  background: #eeeafd;
-  color: #4b3ca7;
 }
 
 .monthScroller {
@@ -711,6 +707,17 @@ a:focus-visible {
   align-content: start;
 }
 
+.memberScheduleEventGroup {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(var(--member-overlap-columns), minmax(0, 1fr));
+  min-width: 0;
+}
+
+.memberScheduleEventSlot {
+  min-width: 0;
+}
+
 .memberScheduleRow:nth-child(odd) .memberScheduleMember,
 .memberScheduleRow:nth-child(odd) .memberScheduleCell {
   background: #fbfcfc;
@@ -730,14 +737,10 @@ a:focus-visible {
   color: #174ea6;
 }
 
-.memberScheduleEvent.microsoft {
+.memberScheduleEvent.microsoft,
+.memberScheduleEvent.teams {
   background: #e7f0ff;
   color: #1b4f9c;
-}
-
-.memberScheduleEvent.teams {
-  background: #eeeafd;
-  color: #4b3ca7;
 }
 
 .memberScheduleEventMeta {
@@ -747,6 +750,7 @@ a:focus-visible {
   font-weight: 800;
   gap: 6px;
   justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 .memberScheduleEvent > strong,
@@ -842,14 +846,10 @@ a:focus-visible {
   color: #174ea6;
 }
 
-.sourcePill.microsoft {
+.sourcePill.microsoft,
+.sourcePill.teams {
   background: #e7f0ff;
   color: #1b4f9c;
-}
-
-.sourcePill.teams {
-  background: #eeeafd;
-  color: #4b3ca7;
 }
 
 .errorText {

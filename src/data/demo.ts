@@ -25,8 +25,8 @@ export const demoEvents: NormalizedEvent[] = [
     updatedAt: "2026-06-19T00:10:00Z",
   },
   {
-    eventId: "teams:sales-b:m-200",
-    source: "teams",
+    eventId: "microsoft:sales-b:m-200",
+    source: "microsoft",
     sourceEventId: "m-200",
     ownerUserId: "sales-b",
     ownerName: "佐藤",

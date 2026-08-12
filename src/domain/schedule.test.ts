@@ -42,7 +42,7 @@ describe("calendar event normalization", () => {
     });
   });
 
-  it("maps a Microsoft Graph event as Teams when online meeting metadata is present", () => {
+  it("Teams会議情報を持つOutlook予定もMicrosoft予定として扱う", () => {
     const event = mapMicrosoftEvent(
       {
         id: "m-1",
@@ -61,8 +61,8 @@ describe("calendar event normalization", () => {
     );
 
     expect(event).toEqual({
-      eventId: "teams:sales-b:m-1",
-      source: "teams",
+      eventId: "microsoft:sales-b:m-1",
+      source: "microsoft",
       sourceEventId: "m-1",
       ownerUserId: "sales-b",
       ownerName: "佐藤",
@@ -105,7 +105,7 @@ describe("calendar event normalization", () => {
       { ownerUserId: "sales-b", ownerName: "佐藤", calendarId: "outlook" },
     );
 
-    expect(event.eventId).toBe("teams:sales-b:m-url");
+    expect(event.eventId).toBe("microsoft:sales-b:m-url");
     expect(event.location).toBe("");
     expect(event.isOnlineMeeting).toBe(true);
   });
@@ -677,7 +677,7 @@ describe("calendar event normalization", () => {
 
     expect(event.title).toBe("予定あり");
     expect(event.location).toBe("");
-    expect(event.source).toBe("teams");
+    expect(event.source).toBe("microsoft");
     expect(event.isOnlineMeeting).toBe(true);
   });
 
@@ -770,6 +770,11 @@ describe("event filtering", () => {
 
   it("sorts by start time then owner name", () => {
     expect(sortEvents([...events]).map((event) => event.eventId)).toEqual(["1", "2"]);
+  });
+
+  it("Microsoft filterへ旧Teams予定も含める", () => {
+    expect(filterEvents(events, { source: "microsoft" }).map((event) => event.eventId))
+      .toEqual(["2"]);
   });
 
   it("日時filterに対してdate-only予定をAsia/Tokyoの深夜・終了日exclusiveとして扱う", () => {

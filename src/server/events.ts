@@ -82,7 +82,11 @@ async function getActiveOwnerIds(dependencies: EventDependencies): Promise<Set<s
 async function listFirestoreEvents(filters: ValidatedEventFilters): Promise<NormalizedEvent[]> {
   let query = getAdminFirestore().collection("events") as unknown as FirestoreQuery;
   if (filters.ownerUserId) query = query.where("ownerUserId", "==", filters.ownerUserId);
-  if (filters.source) query = query.where("source", "==", filters.source);
+  if (filters.source === "microsoft") {
+    query = query.where("source", "in", ["microsoft", "teams"]);
+  } else if (filters.source) {
+    query = query.where("source", "==", filters.source);
+  }
   query = query
     .where("startEpochMs", "<", boundaryToEpochMs(filters.end))
     .where("endEpochMs", ">", boundaryToEpochMs(filters.start));
