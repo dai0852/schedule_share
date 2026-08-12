@@ -536,8 +536,8 @@ a:focus-visible {
 .calendarEventCard.teams,
 .monthEvent.microsoft,
 .monthEvent.teams {
-  background: #e7f0ff;
-  color: #1b4f9c;
+  background: #eeeafd;
+  color: #4b3ca7;
 }
 
 .monthScroller {
@@ -739,8 +739,8 @@ a:focus-visible {
 
 .memberScheduleEvent.microsoft,
 .memberScheduleEvent.teams {
-  background: #e7f0ff;
-  color: #1b4f9c;
+  background: #eeeafd;
+  color: #4b3ca7;
 }
 
 .memberScheduleEventMeta {
@@ -848,8 +848,8 @@ a:focus-visible {
 
 .sourcePill.microsoft,
 .sourcePill.teams {
-  background: #e7f0ff;
-  color: #1b4f9c;
+  background: #eeeafd;
+  color: #4b3ca7;
 }
 
 .errorText {
