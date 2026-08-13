@@ -267,7 +267,7 @@ describe("Google route handlers", () => {
   it("meは未登録をsafe判定可能にし、登録時もtoken/raw errorを投影しない", async () => {
     mocks.findActiveMemberByMicrosoftEmail.mockResolvedValueOnce(null);
     const unregistered = await meGet(request("/api/me/calendar-connection"));
-    expect(await unregistered.json()).toEqual({ registered: false, canManageMembers: true });
+    expect(await unregistered.json()).toEqual({ registered: false, canManageMembers: false });
 
     mocks.getSyncStatuses.mockResolvedValueOnce([{
       memberId: member.id, provider: "google", status: "error", lastStartedAt: member.updatedAt,

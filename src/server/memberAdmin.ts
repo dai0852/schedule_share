@@ -2,7 +2,7 @@ import { normalizeMicrosoftEmail, toPublicMember, type PublicSalesMember, type S
 import type { CreateMemberInput, SyncStatusRecord, UpdateMemberInput } from "./memberStore";
 
 const CREATE_FIELDS = ["displayName", "department", "microsoftEmail"] as const;
-const UPDATE_FIELDS = ["displayName", "department", "active", "microsoftSyncEnabled"] as const;
+const UPDATE_FIELDS = ["displayName", "department", "microsoftEmail", "active", "microsoftSyncEnabled"] as const;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SYNC_ERROR_SUMMARIES = {
   invalid_grant: "Googleカレンダーの再接続が必要です。",
@@ -54,9 +54,17 @@ export function parseUpdateMemberInput(value: unknown): UpdateMemberInput {
     throw new MemberAdminInputError("更新する項目を指定してください。");
   }
 
+  const microsoftEmail = input.microsoftEmail === undefined
+    ? undefined
+    : normalizeMicrosoftEmail(requiredString(input.microsoftEmail, "Microsoftメールアドレス"));
+  if (microsoftEmail !== undefined && !EMAIL_PATTERN.test(microsoftEmail)) {
+    throw new MemberAdminInputError("Microsoftメールアドレスの形式が正しくありません。");
+  }
+
   return {
     ...(input.displayName === undefined ? {} : { displayName: requiredString(input.displayName, "氏名") }),
     ...(input.department === undefined ? {} : { department: requiredString(input.department, "部署") }),
+    ...(microsoftEmail === undefined ? {} : { microsoftEmail }),
     ...(input.active === undefined ? {} : { active: requiredBoolean(input.active, "active") }),
     ...(input.microsoftSyncEnabled === undefined
       ? {}

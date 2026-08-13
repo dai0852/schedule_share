@@ -209,7 +209,7 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("member-token", "member@studio-csa.com")));
 
-    expect(await screen.findByRole("link", { name: "Googleカレンダー接続" })).toHaveAttribute("href", "/connect");
+    expect(await screen.findByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
     expect(screen.queryByRole("link", { name: "管理者コンソール" })).not.toBeInTheDocument();
   });
 
@@ -229,7 +229,20 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(signedInUser("admin-token", "kurihara@studio-csa.com")));
 
     expect(await screen.findByRole("link", { name: "管理者コンソール" })).toHaveAttribute("href", "/admin");
-    expect(screen.getByRole("link", { name: "Googleカレンダー接続" })).toHaveAttribute("href", "/connect");
+    expect(screen.getByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
+  });
+
+  it("管理者でも表示対象メンバーに未登録ならGoogle接続と管理者導線を隠す", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    installApiFetch({ connection: { registered: false, canManageMembers: false } });
+
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser("admin-token", "kurihara@studio-csa.com")));
+    await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" });
+
+    expect(screen.queryByRole("link", { name: /Googleカレンダー/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "管理者コンソール" })).not.toBeInTheDocument();
   });
 
   it("Google接続状態responseが失敗・過大なら導線をfail closedで隠す", async () => {

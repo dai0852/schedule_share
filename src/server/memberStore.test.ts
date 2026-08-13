@@ -511,8 +511,76 @@ describe("memberStore", () => {
     await expect(store.updateMember("missing", { active: false })).rejects.toThrow("指定されたメンバーが見つかりません。");
   });
 
-  it("更新入力型には不変項目を含めない", () => {
-    expectTypeOf<keyof UpdateMemberInput>().toEqualTypeOf<"displayName" | "department" | "active" | "microsoftSyncEnabled">();
+  it("Microsoftメール変更時にprivate indexを原子的に移動し、重複を拒否する", async () => {
+    const { db, store } = createStore(["member-1", "member-2"]);
+    const first = await createMember(store, "first@example.com");
+    await createMember(store, "duplicate@example.com");
+
+    const updated = await store.updateMember(first.id, { microsoftEmail: " NEW@EXAMPLE.COM " });
+    expect(updated.microsoftEmail).toBe("new@example.com");
+    expect(db.documentIds("memberEmailIndex")).toEqual(expect.arrayContaining([
+      createHash("sha256").update("new@example.com").digest("hex"),
+      createHash("sha256").update("duplicate@example.com").digest("hex"),
+    ]));
+    expect(db.documentIds("memberEmailIndex")).not.toContain(
+      createHash("sha256").update("first@example.com").digest("hex"),
+    );
+    await expect(store.findActiveMemberByMicrosoftEmail("new@example.com")).resolves.toEqual(updated);
+    await expect(store.findActiveMemberByMicrosoftEmail("first@example.com")).resolves.toBeNull();
+    await expect(store.updateMember(first.id, { microsoftEmail: "duplicate@example.com" }))
+      .rejects.toThrow("同じMicrosoftメールアドレスのメンバーは既に登録されています。");
+    await expect(store.findActiveMemberByMicrosoftEmail("new@example.com")).resolves.toEqual(updated);
+  });
+
+  it("更新入力型には管理画面で変更できる項目だけを含める", () => {
+    expectTypeOf<keyof UpdateMemberInput>().toEqualTypeOf<"displayName" | "department" | "microsoftEmail" | "active" | "microsoftSyncEnabled">();
+  });
+
+  it("同期lock中にメンバーと関連データを削除し、メールを再登録可能にする", async () => {
+    const { db, store } = createStore(["member-1", "member-2"]);
+    const member = await createMember(store, "delete@example.com");
+    await store.saveConnection(connection(member.id), {
+      memberId: member.id,
+      microsoftEmail: member.microsoftEmail,
+      startedByUid: "firebase-uid",
+    });
+    const guard = await syncGuard(store);
+    await store.saveSyncStatus({
+      memberId: member.id,
+      provider: "microsoft",
+      status: "success",
+      lastStartedAt: NOW,
+      lastSucceededAt: NOW,
+      lastErrorCode: null,
+      lastErrorMessage: null,
+      updatedAt: NOW,
+    }, guard);
+    await store.replaceProviderEvents(member.id, "google", {
+      start: "2026-08-01T00:00:00.000Z",
+      end: "2026-09-01T00:00:00.000Z",
+      syncedAt: NOW,
+    }, [normalizedEvent(member.id, "google", "delete-event")], guard, connection(member.id).revision);
+    await store.createOAuthState("pending-state", {
+      memberId: member.id,
+      browserNonceHash: "nonce",
+      startedByUid: "firebase-uid",
+      microsoftEmail: member.microsoftEmail,
+      createdAt: NOW,
+      expiresAt: "2026-08-11T09:10:00.000Z",
+    });
+
+    await store.deleteMember(member.id, guard);
+
+    await expect(store.findActiveMemberByMicrosoftEmail("delete@example.com")).resolves.toBeNull();
+    await expect(store.getConnection(member.id)).resolves.toBeNull();
+    await expect(store.getSyncStatuses(member.id)).resolves.toEqual([]);
+    expect(db.documentIds("events")).toEqual([]);
+    expect(db.documentIds("oauthStates")).toEqual([]);
+    await expect(store.createMember({
+      displayName: "再登録",
+      department: "営業",
+      microsoftEmail: "delete@example.com",
+    })).resolves.toMatchObject({ microsoftEmail: "delete@example.com" });
   });
 
   it("接続の保存・削除をメンバー接続状態と原子的に反映する", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, CircleAlert, RefreshCw, Settings } from "lucide-react";
+import { CheckCircle2, CircleAlert, Pencil, RefreshCw, Settings, Trash2 } from "lucide-react";
 import { onAuthStateChanged, signInWithPopup, type User } from "firebase/auth";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -84,7 +84,12 @@ export function AdminMembers() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_FORM);
+  const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [signingIn, setSigningIn] = useState(false);
@@ -111,7 +116,12 @@ export function AdminMembers() {
           setError(null);
           setSuccess(null);
           setForm(EMPTY_FORM);
+          setEditingMemberId(null);
+          setEditForm(EMPTY_FORM);
+          setDeleteCandidateId(null);
           setCreating(false);
+          setSavingEdit(false);
+          setDeleting(false);
           setUpdating(null);
           setSyncing(false);
           setSigningIn(false);
@@ -129,7 +139,12 @@ export function AdminMembers() {
           setAccessDenied(false);
           setSuccess(null);
           setForm(EMPTY_FORM);
+          setEditingMemberId(null);
+          setEditForm(EMPTY_FORM);
+          setDeleteCandidateId(null);
           setCreating(false);
+          setSavingEdit(false);
+          setDeleting(false);
           setUpdating(null);
           setSyncing(false);
           setSigningIn(false);
@@ -282,6 +297,92 @@ export function AdminMembers() {
     }
   }
 
+  function startEditing(member: SalesMemberRecord) {
+    setEditingMemberId(member.id);
+    setEditForm({
+      displayName: member.displayName,
+      department: member.department,
+      microsoftEmail: member.microsoftEmail,
+    });
+    setDeleteCandidateId(null);
+    setError(null);
+    setSuccess(null);
+  }
+
+  async function submitMemberEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user || !editingMemberId || savingEdit || deleting || Boolean(updating)) return;
+    const generation = authGeneration.current;
+    const targetMemberId = editingMemberId;
+    setSavingEdit(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const token = await user.getIdToken();
+      if (authGeneration.current !== generation || currentUser.current !== user) return;
+      const response = await fetch(`/api/admin/members/${encodeURIComponent(targetMemberId)}`, {
+        method: "PATCH",
+        headers: {
+          authorization: `Bearer ${token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(editForm),
+      });
+      if (authGeneration.current !== generation || currentUser.current !== user) return;
+      if (response.status === 403) throw new AdminApiError("管理者権限が必要です。");
+      const data = await readMemberResponse(response, "メンバー情報を変更できませんでした。");
+      if (authGeneration.current !== generation || currentUser.current !== user) return;
+      setMembers((current) => current.map((item) => item.id === data.member.id ? data.member : item));
+      setEditingMemberId(null);
+      setEditForm(EMPTY_FORM);
+      setSuccess("メンバー情報を変更しました。");
+    } catch (reason) {
+      if (authGeneration.current === generation) {
+        setError(reason instanceof AdminApiError ? reason.message : "メンバー情報を変更できませんでした。");
+      }
+    } finally {
+      if (authGeneration.current === generation) setSavingEdit(false);
+    }
+  }
+
+  async function deleteMember() {
+    if (!user || !deleteCandidateId || deleting || savingEdit || Boolean(updating)) return;
+    const generation = authGeneration.current;
+    const targetMemberId = deleteCandidateId;
+    setDeleting(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const token = await user.getIdToken();
+      if (authGeneration.current !== generation || currentUser.current !== user) return;
+      const response = await fetch(`/api/admin/members/${encodeURIComponent(targetMemberId)}`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
+      });
+      if (authGeneration.current !== generation || currentUser.current !== user) return;
+      if (response.status === 403) throw new AdminApiError("管理者権限が必要です。");
+      if (response.status === 404) throw new AdminApiError("指定されたメンバーが見つかりません。");
+      if (response.status === 409) {
+        throw new AdminApiError("予定の同期処理中です。しばらくしてからもう一度お試しください。");
+      }
+      if (response.status !== 204) throw new AdminApiError("メンバーを削除できませんでした。");
+      setMembers((current) => current.filter((item) => item.id !== targetMemberId));
+      setSyncStatuses((current) => current.filter((item) => item.memberId !== targetMemberId));
+      if (editingMemberId === targetMemberId) {
+        setEditingMemberId(null);
+        setEditForm(EMPTY_FORM);
+      }
+      setDeleteCandidateId(null);
+      setSuccess("メンバーと関連する予定・接続情報を削除しました。");
+    } catch (reason) {
+      if (authGeneration.current === generation) {
+        setError(reason instanceof AdminApiError ? reason.message : "メンバーを削除できませんでした。");
+      }
+    } finally {
+      if (authGeneration.current === generation) setDeleting(false);
+    }
+  }
+
   async function runManualSync() {
     if (!user || syncing) return;
     const generation = authGeneration.current;
@@ -385,6 +486,39 @@ export function AdminMembers() {
         </button>
       </form>
 
+      {editingMemberId ? (
+        <form className="memberForm memberEditForm" aria-label="メンバー情報の編集" onSubmit={submitMemberEdit}>
+          <label>
+            編集する氏名
+            <input required value={editForm.displayName} onChange={(event) => setEditForm({ ...editForm, displayName: event.target.value })} />
+          </label>
+          <label>
+            編集する部署
+            <input required value={editForm.department} onChange={(event) => setEditForm({ ...editForm, department: event.target.value })} />
+          </label>
+          <label>
+            編集するMicrosoftメールアドレス
+            <input required type="email" value={editForm.microsoftEmail} onChange={(event) => setEditForm({ ...editForm, microsoftEmail: event.target.value })} />
+          </label>
+          <span className="memberEditActions">
+            <button className="primaryButton" type="submit" disabled={savingEdit}>
+              {savingEdit ? "保存しています…" : "変更を保存"}
+            </button>
+            <button
+              className="secondaryButton"
+              type="button"
+              disabled={savingEdit}
+              onClick={() => {
+                setEditingMemberId(null);
+                setEditForm(EMPTY_FORM);
+              }}
+            >
+              キャンセル
+            </button>
+          </span>
+        </form>
+      ) : null}
+
       {error ? <p className="errorText" role="alert">{error}</p> : null}
       {success ? <p className="successText" role="status">{success}</p> : null}
 
@@ -397,6 +531,7 @@ export function AdminMembers() {
             <span role="columnheader">Google</span>
             <span role="columnheader">Microsoft</span>
             <span role="columnheader">同期履歴</span>
+            <span role="columnheader">操作</span>
           </div>
         </div>
         <div className="memberBody" role="rowgroup">
@@ -413,7 +548,7 @@ export function AdminMembers() {
                 <button
                   className="secondaryButton memberToggle"
                   type="button"
-                  disabled={Boolean(updating)}
+                  disabled={Boolean(updating) || savingEdit || deleting}
                   aria-label={`${member.displayName}を${member.active ? "無効" : "有効"}化`}
                   onClick={() => void updateMember(member, { active: !member.active })}
                 >
@@ -425,7 +560,7 @@ export function AdminMembers() {
                 <button
                   className="secondaryButton memberToggle"
                   type="button"
-                  disabled={Boolean(updating)}
+                  disabled={Boolean(updating) || savingEdit || deleting}
                   aria-label={`${member.displayName}のMicrosoft同期を${member.microsoftSyncEnabled ? "無効" : "有効"}化`}
                   onClick={() => void updateMember(member, { microsoftSyncEnabled: !member.microsoftSyncEnabled })}
                 >
@@ -433,10 +568,58 @@ export function AdminMembers() {
                 </button>
               </span>
               <span role="cell"><SyncHistory statuses={statusesByMember.get(member.id) ?? []} /></span>
+              <span className="memberRowActions" role="cell">
+                <button
+                  className="secondaryButton memberActionButton"
+                  type="button"
+                  disabled={savingEdit || deleting}
+                  aria-label={`${member.displayName}の情報を編集`}
+                  onClick={() => startEditing(member)}
+                >
+                  <Pencil aria-hidden="true" size={15} />
+                  編集
+                </button>
+                <button
+                  className="secondaryButton memberActionButton dangerButton"
+                  type="button"
+                  disabled={savingEdit || deleting}
+                  aria-label={`${member.displayName}を削除`}
+                  onClick={() => {
+                    setDeleteCandidateId(member.id);
+                    setError(null);
+                    setSuccess(null);
+                  }}
+                >
+                  <Trash2 aria-hidden="true" size={15} />
+                  削除
+                </button>
+              </span>
             </div>
           ))}
         </div>
       </div>
+
+      {deleteCandidateId ? (
+        <div className="disconnectDialog adminDeleteDialog" role="dialog" aria-modal="true" aria-labelledby="delete-member-title">
+          <div>
+            <p className="eyebrow">DELETE MEMBER</p>
+            <h3 id="delete-member-title">このメンバーを削除しますか？</h3>
+            <p>
+              {members.find((member) => member.id === deleteCandidateId)?.displayName ?? "選択したメンバー"}の登録、
+              Google接続、同期状態、保存済み予定を削除します。この操作は元に戻せません。
+            </p>
+          </div>
+          <div className="disconnectActions">
+            <button className="secondaryButton" type="button" disabled={deleting} onClick={() => setDeleteCandidateId(null)}>
+              キャンセル
+            </button>
+            <button className="dangerButton confirmDeleteButton" type="button" disabled={deleting} onClick={() => void deleteMember()}>
+              <Trash2 aria-hidden="true" size={16} />
+              {deleting ? "削除しています…" : "削除する"}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -476,12 +659,15 @@ function SyncHistory({ statuses }: { statuses: AdminSyncStatus[] }) {
 }
 
 async function readMemberResponse(response: Response, fallback: string): Promise<MemberResponse> {
-  const data = await response.json().catch(() => null) as ({ error?: unknown } & Partial<MemberResponse>) | null;
-  if (!response.ok || !data?.member) {
-    const safeMessage = typeof data?.error === "string" ? data.error : fallback;
-    throw new AdminApiError(safeMessage);
+  if (!response.ok) {
+    const data = await readLimitedJson(response, fallback).catch(() => null);
+    const record = data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : null;
+    throw new AdminApiError(typeof record?.error === "string" && record.error.length <= 500 ? record.error : fallback);
   }
-  return { member: data.member };
+  const data = exactObject(await readLimitedJson(response, fallback), ["member"] as const);
+  const member = data ? parseMemberRecord(data.member) : null;
+  if (!member) throw new AdminApiError(fallback);
+  return { member };
 }
 
 async function readAdminMembersResponse(response: Response, fallback: string): Promise<AdminMembersResponse> {

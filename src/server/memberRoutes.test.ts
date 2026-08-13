@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SalesMemberRecord } from "@/domain/member";
 import type { SyncStatusRecord } from "@/server/memberStore";
 import { GET as adminGet, POST as adminPost } from "../../app/api/admin/members/route";
-import { PATCH as adminPatch } from "../../app/api/admin/members/[memberId]/route";
+import { DELETE as adminDelete, PATCH as adminPatch } from "../../app/api/admin/members/[memberId]/route";
 import { GET as publicGet } from "../../app/api/members/route";
 
 const mocks = vi.hoisted(() => ({
@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
   listMembers: vi.fn(),
   createMember: vi.fn(),
   updateMember: vi.fn(),
+  deleteMember: vi.fn(),
   getSyncStatuses: vi.fn(),
+  acquireSyncLock: vi.fn(),
+  releaseSyncLock: vi.fn(),
 }));
 
 vi.mock("@/server/auth", () => ({ requireAppUser: mocks.requireAppUser }));
@@ -20,7 +23,10 @@ vi.mock("@/server/memberStore", () => ({
     listMembers: mocks.listMembers,
     createMember: mocks.createMember,
     updateMember: mocks.updateMember,
+    deleteMember: mocks.deleteMember,
     getSyncStatuses: mocks.getSyncStatuses,
+    acquireSyncLock: mocks.acquireSyncLock,
+    releaseSyncLock: mocks.releaseSyncLock,
   }),
 }));
 
@@ -68,12 +74,16 @@ describe("member route handlers", () => {
     mocks.getSyncStatuses.mockResolvedValue([]);
     mocks.createMember.mockResolvedValue(member);
     mocks.updateMember.mockResolvedValue(member);
+    mocks.deleteMember.mockResolvedValue(undefined);
+    mocks.acquireSyncLock.mockResolvedValue({ ownerId: "admin-delete", fence: 1 });
+    mocks.releaseSyncLock.mockResolvedValue(undefined);
   });
 
   it.each([
     ["admin GET", () => adminGet(request("/api/admin/members"))],
     ["admin POST", () => adminPost(request("/api/admin/members", { method: "POST", body: "{}" }))],
     ["admin PATCH", () => adminPatch(request("/api/admin/members/member-1", { method: "PATCH", body: "{}" }), patchContext())],
+    ["admin DELETE", () => adminDelete(request("/api/admin/members/member-1", { method: "DELETE" }), patchContext())],
     ["public GET", () => publicGet(request("/api/members"))],
   ])("%sは未認証Responseをそのまま返し、storeを呼ばない", async (_name, invoke) => {
     const unauthorized = new Response("認証が必要です。", { status: 401 });
@@ -85,6 +95,7 @@ describe("member route handlers", () => {
     expect(mocks.listMembers).not.toHaveBeenCalled();
     expect(mocks.createMember).not.toHaveBeenCalled();
     expect(mocks.updateMember).not.toHaveBeenCalled();
+    expect(mocks.deleteMember).not.toHaveBeenCalled();
     expect(mocks.getSyncStatuses).not.toHaveBeenCalled();
   });
 
@@ -92,6 +103,7 @@ describe("member route handlers", () => {
     ["GET", () => adminGet(request("/api/admin/members"))],
     ["POST", () => adminPost(request("/api/admin/members", { method: "POST", body: "{}" }))],
     ["PATCH", () => adminPatch(request("/api/admin/members/member-1", { method: "PATCH", body: "{}" }), patchContext())],
+    ["DELETE", () => adminDelete(request("/api/admin/members/member-1", { method: "DELETE" }), patchContext())],
   ])("admin %sは非adminを403にし、storeを呼ばない", async (_method, invoke) => {
     mocks.requireAppUser.mockResolvedValue(viewer);
 
@@ -102,6 +114,7 @@ describe("member route handlers", () => {
     expect(mocks.listMembers).not.toHaveBeenCalled();
     expect(mocks.createMember).not.toHaveBeenCalled();
     expect(mocks.updateMember).not.toHaveBeenCalled();
+    expect(mocks.deleteMember).not.toHaveBeenCalled();
     expect(mocks.getSyncStatuses).not.toHaveBeenCalled();
   });
 
@@ -213,6 +226,60 @@ describe("member route handlers", () => {
     );
     expect(response.status).toBe(500);
     expect(await body(response)).toEqual({ error: "メンバー更新に失敗しました。" });
+  });
+
+  it("admin PATCHはMicrosoftメール変更を正規化して渡し、重複は400にする", async () => {
+    const response = await adminPatch(
+      request("/api/admin/members/member-1", {
+        method: "PATCH",
+        body: JSON.stringify({ microsoftEmail: " NEW@EXAMPLE.COM " }),
+      }),
+      patchContext(),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.updateMember).toHaveBeenCalledWith("member-1", { microsoftEmail: "new@example.com" });
+
+    mocks.updateMember.mockRejectedValueOnce(new Error("同じMicrosoftメールアドレスのメンバーは既に登録されています。"));
+    const duplicate = await adminPatch(
+      request("/api/admin/members/member-1", {
+        method: "PATCH",
+        body: JSON.stringify({ microsoftEmail: "duplicate@example.com" }),
+      }),
+      patchContext(),
+    );
+    expect(duplicate.status).toBe(400);
+    expect(await body(duplicate)).toEqual({ error: "同じMicrosoftメールアドレスのメンバーは既に登録されています。" });
+  });
+
+  it("admin DELETEは同期lock内で削除して204を返す", async () => {
+    const response = await adminDelete(
+      request("/api/admin/members/member-1", { method: "DELETE" }),
+      patchContext(),
+    );
+    expect(response.status).toBe(204);
+    expect(mocks.deleteMember).toHaveBeenCalledWith("member-1", expect.objectContaining({
+      lease: { ownerId: "admin-delete", fence: 1 },
+      now: expect.any(Function),
+    }));
+    expect(mocks.releaseSyncLock).toHaveBeenCalledWith({ ownerId: "admin-delete", fence: 1 });
+  });
+
+  it("admin DELETEは同期中を409、missingを404、未知例外を固定500にする", async () => {
+    mocks.acquireSyncLock.mockResolvedValueOnce(null);
+    const locked = await adminDelete(request("/api/admin/members/member-1", { method: "DELETE" }), patchContext());
+    expect(locked.status).toBe(409);
+    expect(mocks.deleteMember).not.toHaveBeenCalled();
+
+    mocks.acquireSyncLock.mockResolvedValueOnce({ ownerId: "delete-2", fence: 2 });
+    mocks.deleteMember.mockRejectedValueOnce(new Error("指定されたメンバーが見つかりません。"));
+    const missing = await adminDelete(request("/api/admin/members/missing", { method: "DELETE" }), patchContext("missing"));
+    expect(missing.status).toBe(404);
+
+    mocks.acquireSyncLock.mockResolvedValueOnce({ ownerId: "delete-3", fence: 3 });
+    mocks.deleteMember.mockRejectedValueOnce(new Error("Bearer secret-token"));
+    const failed = await adminDelete(request("/api/admin/members/member-1", { method: "DELETE" }), patchContext());
+    expect(failed.status).toBe(500);
+    expect(await body(failed)).toEqual({ error: "メンバー削除に失敗しました。" });
   });
 
   it("public GETはactive memberの公開3項目だけを返す", async () => {

@@ -4,6 +4,7 @@ import Link from "next/link";
 interface AppNavigationProps {
   showCalendar?: boolean;
   showGoogleConnection?: boolean;
+  googleConnectionConfigured?: boolean;
   showAdminConsole?: boolean;
   className?: string;
 }
@@ -11,6 +12,7 @@ interface AppNavigationProps {
 export function AppNavigation({
   showCalendar = false,
   showGoogleConnection = false,
+  googleConnectionConfigured = false,
   showAdminConsole = false,
   className,
 }: AppNavigationProps) {
@@ -30,7 +32,7 @@ export function AppNavigation({
       {showGoogleConnection ? (
         <Link className="secondaryButton navigationButton" href="/connect">
           <CalendarSync aria-hidden="true" size={16} />
-          Googleカレンダー接続
+          {googleConnectionConfigured ? "Googleカレンダー設定・解除" : "Googleカレンダー接続"}
         </Link>
       ) : null}
       {showAdminConsole ? (

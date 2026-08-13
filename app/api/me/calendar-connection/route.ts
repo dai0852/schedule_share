@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const canManageMembers = canManage(user);
     const store = getMemberStore();
     const member = await store.findActiveMemberByMicrosoftEmail(user.email);
-    if (!member) return NextResponse.json({ registered: false, canManageMembers }, { headers: NO_STORE });
+    if (!member) return NextResponse.json({ registered: false, canManageMembers: false }, { headers: NO_STORE });
 
     const [connection, statuses] = await Promise.all([
       store.getConnection(member.id),

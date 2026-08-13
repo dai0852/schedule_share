@@ -43,7 +43,7 @@ function callbackInput(overrides: Partial<{ code: string; state: string; error: 
 
 function store(overrides: Partial<MemberStore> = {}): MemberStore {
   return {
-    listMembers: vi.fn(), getActiveMemberById: vi.fn(), createMember: vi.fn(), updateMember: vi.fn(),
+    listMembers: vi.fn(), getActiveMemberById: vi.fn(), createMember: vi.fn(), updateMember: vi.fn(), deleteMember: vi.fn(),
     findActiveMemberByMicrosoftEmail: vi.fn().mockResolvedValue(member),
     createOAuthState: vi.fn(), consumeOAuthState: vi.fn().mockResolvedValue(oauthState),
     getConnection: vi.fn().mockResolvedValue(null), saveConnection: vi.fn(), deleteConnection: vi.fn(),

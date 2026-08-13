@@ -51,6 +51,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const [membersLoading, setMembersLoading] = useState(false);
   const [membersError, setMembersError] = useState<string | null>(null);
   const [canManageGoogle, setCanManageGoogle] = useState(false);
+  const [googleConnectionConfigured, setGoogleConnectionConfigured] = useState(false);
   const [canManageMembers, setCanManageMembers] = useState(false);
   const [events, setEvents] = useState<NormalizedEvent[]>([]);
   const [mode, setMode] = useState<ViewMode>("members");
@@ -100,6 +101,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           setMembers([]);
           setEvents([]);
           setCanManageGoogle(false);
+          setGoogleConnectionConfigured(false);
           setCanManageMembers(false);
           setMembersLoading(false);
           setLoading(false);
@@ -120,6 +122,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           setMembers([]);
           setEvents([]);
           setCanManageGoogle(false);
+          setGoogleConnectionConfigured(false);
           setCanManageMembers(false);
           setMembersLoading(false);
           setLoading(false);
@@ -196,6 +199,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
       connectionController.current?.abort();
       connectionController.current = null;
       setCanManageGoogle(false);
+      setGoogleConnectionConfigured(false);
       setCanManageMembers(false);
       return;
     }
@@ -205,6 +209,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     connectionController.current?.abort();
     connectionController.current = controller;
     setCanManageGoogle(false);
+    setGoogleConnectionConfigured(false);
     setCanManageMembers(false);
 
     void (async () => {
@@ -221,10 +226,12 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
         );
         if (controller.signal.aborted || authGeneration.current !== generation) return;
         setCanManageGoogle(access.registered);
-        setCanManageMembers(access.canManageMembers);
+        setGoogleConnectionConfigured(access.registered && access.status !== "not_connected");
+        setCanManageMembers(access.registered && access.canManageMembers);
       } catch {
         if (controller.signal.aborted || authGeneration.current !== generation) return;
         setCanManageGoogle(false);
+        setGoogleConnectionConfigured(false);
         setCanManageMembers(false);
       }
     })();
@@ -439,6 +446,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
             <>
               <AppNavigation
                 showGoogleConnection={canManageGoogle}
+                googleConnectionConfigured={googleConnectionConfigured}
                 showAdminConsole={canManageMembers}
               />
               <button className="secondaryButton" onClick={handleSignOut}>
@@ -567,7 +575,11 @@ function parseMembersResponse(value: unknown): PublicSalesMember[] {
   });
 }
 
-function parseConnectionResponse(value: unknown): { registered: boolean; canManageMembers: boolean } {
+function parseConnectionResponse(value: unknown): {
+  registered: boolean;
+  canManageMembers: boolean;
+  status: "not_connected" | "connected" | "reconnect_required";
+} {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new SafeApiError();
   const record = value as Record<string, unknown>;
   const allowedFields = new Set([
@@ -581,7 +593,7 @@ function parseConnectionResponse(value: unknown): { registered: boolean; canMana
     if (Object.keys(record).some((field) => field !== "registered" && field !== "canManageMembers")) {
       throw new SafeApiError();
     }
-    return { registered: false, canManageMembers };
+    return { registered: false, canManageMembers, status: "not_connected" };
   }
   if (record.status !== "not_connected"
     && record.status !== "connected"
@@ -589,7 +601,7 @@ function parseConnectionResponse(value: unknown): { registered: boolean; canMana
   if (record.googleEmail !== undefined) boundedString(record.googleEmail, 320);
   if (record.lastSucceededAt !== undefined) rfc3339(record.lastSucceededAt);
   if (record.lastErrorSummary !== undefined) boundedString(record.lastErrorSummary, 500);
-  return { registered: true, canManageMembers };
+  return { registered: true, canManageMembers, status: record.status };
 }
 
 function parseEventsResponse(value: unknown): NormalizedEvent[] {

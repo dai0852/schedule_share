@@ -111,9 +111,9 @@ describe("AdminMembers", () => {
     expect(screen.getByText("接続済み")).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "営業メンバー一覧" });
     expect(within(table).getAllByRole("rowgroup")).toHaveLength(2);
-    expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
+    expect(within(table).getAllByRole("columnheader")).toHaveLength(7);
     expect(within(table).getAllByRole("row")).toHaveLength(2);
-    expect(within(table).getAllByRole("cell")).toHaveLength(6);
+    expect(within(table).getAllByRole("cell")).toHaveLength(7);
     expect(fetch).toHaveBeenCalledWith("/api/admin/members", {
       headers: { authorization: "Bearer firebase-token" },
     });
@@ -283,6 +283,76 @@ describe("AdminMembers", () => {
         "content-type": "application/json",
       },
       body: JSON.stringify({ microsoftSyncEnabled: false }),
+    });
+  });
+
+  it("登録済みメンバーの氏名・部署・Microsoftメールを編集する", async () => {
+    firebaseMocks.onAuthStateChanged.mockImplementation((_auth, next) => {
+      next(signedInUser());
+      return vi.fn();
+    });
+    const edited = {
+      ...member,
+      displayName: "佐藤 花子（東京）",
+      department: "法人営業部",
+      microsoftEmail: "hanako.tokyo@example.com",
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ members: [member], syncStatuses: [] }))
+      .mockResolvedValueOnce(jsonResponse({ member: edited }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AdminMembers />);
+    await screen.findByText("佐藤 花子");
+    fireEvent.click(screen.getByRole("button", { name: "佐藤 花子の情報を編集" }));
+    expect(screen.getByRole("form", { name: "メンバー情報の編集" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("編集する氏名"), { target: { value: edited.displayName } });
+    fireEvent.change(screen.getByLabelText("編集する部署"), { target: { value: edited.department } });
+    fireEvent.change(screen.getByLabelText("編集するMicrosoftメールアドレス"), {
+      target: { value: edited.microsoftEmail },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "変更を保存" }));
+
+    expect(await screen.findByText("メンバー情報を変更しました。")).toBeInTheDocument();
+    expect(screen.getByText(edited.displayName)).toBeInTheDocument();
+    expect(screen.getByText(edited.microsoftEmail)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/admin/members/member-1", {
+      method: "PATCH",
+      headers: {
+        authorization: "Bearer firebase-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        displayName: edited.displayName,
+        department: edited.department,
+        microsoftEmail: edited.microsoftEmail,
+      }),
+    });
+  });
+
+  it("確認後にメンバーと表示中の同期状態を削除する", async () => {
+    firebaseMocks.onAuthStateChanged.mockImplementation((_auth, next) => {
+      next(signedInUser());
+      return vi.fn();
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ members: [member], syncStatuses: statuses }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<AdminMembers />);
+    await screen.findByText("佐藤 花子");
+    fireEvent.click(screen.getByRole("button", { name: "佐藤 花子を削除" }));
+    const dialog = screen.getByRole("dialog", { name: "このメンバーを削除しますか？" });
+    expect(dialog).toHaveTextContent("Google接続、同期状態、保存済み予定を削除します");
+    fireEvent.click(within(dialog).getByRole("button", { name: "削除する" }));
+
+    expect(await screen.findByText("メンバーと関連する予定・接続情報を削除しました。")).toBeInTheDocument();
+    expect(screen.getByText("登録済みメンバーはいません。")).toBeInTheDocument();
+    expect(screen.queryByText("佐藤 花子")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/admin/members/member-1", {
+      method: "DELETE",
+      headers: { authorization: "Bearer firebase-token" },
     });
   });
 

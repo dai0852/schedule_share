@@ -45,7 +45,12 @@ describe("member admin request parser", () => {
   });
 
   it("更新入力の許可フィールドを受け取る", () => {
-    expect(parseUpdateMemberInput({ active: false, microsoftSyncEnabled: true })).toEqual({
+    expect(parseUpdateMemberInput({
+      microsoftEmail: " NEW@EXAMPLE.COM ",
+      active: false,
+      microsoftSyncEnabled: true,
+    })).toEqual({
+      microsoftEmail: "new@example.com",
       active: false,
       microsoftSyncEnabled: true,
     });
@@ -53,7 +58,8 @@ describe("member admin request parser", () => {
 
   it.each([
     ["空オブジェクト", {}],
-    ["未知フィールド", { microsoftEmail: "new@example.com" }],
+    ["不正メール", { microsoftEmail: "invalid" }],
+    ["未知フィールド", { token: "secret" }],
     ["文字列の真偽値", { active: "false" }],
     ["null", null],
   ])("PATCHで%sを拒否する", (_label, input) => {

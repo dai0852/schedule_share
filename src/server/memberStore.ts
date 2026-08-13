@@ -19,6 +19,7 @@ export interface CreateMemberInput {
 export interface UpdateMemberInput {
   displayName?: string;
   department?: string;
+  microsoftEmail?: string;
   active?: boolean;
   microsoftSyncEnabled?: boolean;
 }
@@ -102,6 +103,7 @@ export interface MemberStore {
   getActiveMemberById(memberId: string): Promise<SalesMemberRecord | null>;
   createMember(input: CreateMemberInput): Promise<SalesMemberRecord>;
   updateMember(memberId: string, input: UpdateMemberInput): Promise<SalesMemberRecord>;
+  deleteMember(memberId: string, guard: SyncWriteGuard): Promise<void>;
   findActiveMemberByMicrosoftEmail(email: string): Promise<SalesMemberRecord | null>;
   createOAuthState(hash: string, record: OAuthStateRecord): Promise<void>;
   consumeOAuthState(hash: string, browserNonceHash: string, now: string): Promise<OAuthStateRecord | null>;
@@ -278,13 +280,39 @@ export function createMemberStore(
 
     async updateMember(memberId, input) {
       const candidate = objectInput(input);
-      const document = firestore.collection(MEMBERS_COLLECTION).doc(memberId);
+      const safeMemberId = publicMemberId(memberId);
+      const document = firestore.collection(MEMBERS_COLLECTION).doc(safeMemberId);
       return firestore.runTransaction(async (transaction) => {
-        const existing = await requiredMember(transaction, document, memberId);
+        const existing = await requiredMember(transaction, document, safeMemberId);
+        const microsoftEmail = candidate.microsoftEmail === undefined
+          ? existing.microsoftEmail
+          : validatedMicrosoftEmail(candidate.microsoftEmail);
+        const emailChanged = microsoftEmail !== existing.microsoftEmail;
+        const oldIndexDocument = firestore.collection(MEMBER_EMAIL_INDEX_COLLECTION)
+          .doc(memberEmailIndexId(existing.microsoftEmail));
+        const newIndexDocument = firestore.collection(MEMBER_EMAIL_INDEX_COLLECTION)
+          .doc(memberEmailIndexId(microsoftEmail));
+        if (emailChanged) {
+          const [oldIndexSnapshot, newIndexSnapshot] = await Promise.all([
+            transaction.get(oldIndexDocument),
+            transaction.get(newIndexDocument),
+          ]);
+          if (!oldIndexSnapshot.exists) invalidFirestoreData("memberEmailIndex");
+          const oldIndex = decodeMemberEmailIndex(
+            oldIndexSnapshot.data(),
+            oldIndexDocument.id,
+            existing.microsoftEmail,
+          );
+          if (oldIndex.memberId !== safeMemberId) invalidFirestoreData("memberEmailIndex.memberId");
+          if (newIndexSnapshot.exists) {
+            throw new Error("同じMicrosoftメールアドレスのメンバーは既に登録されています。");
+          }
+        }
         const updated: SalesMemberRecord = {
           ...existing,
           ...(candidate.displayName === undefined ? {} : { displayName: requiredTrimmed(candidate.displayName, "表示名") }),
           ...(candidate.department === undefined ? {} : { department: requiredTrimmed(candidate.department, "部署名") }),
+          microsoftEmail,
           ...(candidate.active === undefined ? {} : { active: requiredBoolean(candidate.active, "active") }),
           ...(candidate.microsoftSyncEnabled === undefined
             ? {}
@@ -292,7 +320,70 @@ export function createMemberStore(
           updatedAt: now(),
         };
         transaction.set(document, updated);
+        if (emailChanged) {
+          transaction.delete(oldIndexDocument);
+          transaction.set(newIndexDocument, {
+            memberId: safeMemberId,
+            microsoftEmail,
+          } satisfies MemberEmailIndexRecord);
+        }
         return updated;
+      });
+    },
+
+    async deleteMember(memberId, guard) {
+      const safeMemberId = publicMemberId(memberId);
+      const safeGuard = syncWriteGuard(guard);
+      const memberDocument = firestore.collection(MEMBERS_COLLECTION).doc(safeMemberId);
+      const memberSnapshot = await memberDocument.get();
+      if (!memberSnapshot.exists) throw new Error("指定されたメンバーが見つかりません。");
+      const member = decodeMember(memberSnapshot.data(), safeMemberId);
+
+      const [eventSnapshot, oauthStateSnapshot] = await Promise.all([
+        firestore.collection(EVENTS_COLLECTION).where("ownerUserId", "==", safeMemberId).get(),
+        firestore.collection(OAUTH_STATES_COLLECTION).where("memberId", "==", safeMemberId).get(),
+      ]);
+      const relatedDocuments = [
+        ...eventSnapshot.docs.map((document) => deletionDocument(
+          EVENTS_COLLECTION,
+          document,
+          "ownerUserId",
+          safeMemberId,
+          firestore,
+        )),
+        ...oauthStateSnapshot.docs.map((document) => deletionDocument(
+          OAUTH_STATES_COLLECTION,
+          document,
+          "memberId",
+          safeMemberId,
+          firestore,
+        )),
+      ];
+      await commitFencedDeletes(firestore, safeGuard, relatedDocuments);
+
+      const indexDocument = firestore.collection(MEMBER_EMAIL_INDEX_COLLECTION)
+        .doc(memberEmailIndexId(member.microsoftEmail));
+      const connectionDocument = firestore.collection(CONNECTIONS_COLLECTION).doc(safeMemberId);
+      const googleStatusDocument = firestore.collection(SYNC_STATUS_COLLECTION).doc(`${safeMemberId}_google`);
+      const microsoftStatusDocument = firestore.collection(SYNC_STATUS_COLLECTION).doc(`${safeMemberId}_microsoft`);
+      await firestore.runTransaction(async (transaction) => {
+        const [currentMemberSnapshot, indexSnapshot] = await Promise.all([
+          transaction.get(memberDocument),
+          transaction.get(indexDocument),
+        ]);
+        await assertSyncWriteGuard(firestore, transaction, safeGuard);
+        if (!currentMemberSnapshot.exists) throw new Error("指定されたメンバーが見つかりません。");
+        const currentMember = decodeMember(currentMemberSnapshot.data(), safeMemberId);
+        if (currentMember.microsoftEmail !== member.microsoftEmail || !indexSnapshot.exists) {
+          throw new Error("メンバー情報が更新されました。もう一度お試しください。");
+        }
+        const index = decodeMemberEmailIndex(indexSnapshot.data(), indexDocument.id, member.microsoftEmail);
+        if (index.memberId !== safeMemberId) invalidFirestoreData("memberEmailIndex.memberId");
+        transaction.delete(connectionDocument);
+        transaction.delete(googleStatusDocument);
+        transaction.delete(microsoftStatusDocument);
+        transaction.delete(indexDocument);
+        transaction.delete(memberDocument);
       });
     },
 
@@ -873,6 +964,12 @@ type FencedEventOperation =
   | { kind: "set"; reference: FirestoreDocumentReference; data: StoredNormalizedEvent }
   | { kind: "delete"; reference: FirestoreDocumentReference; data: StoredNormalizedEvent };
 
+type FencedDeleteOperation = {
+  reference: FirestoreDocumentReference;
+  collectionName: string;
+  data: Record<string, unknown>;
+};
+
 type FirestoreTransactionBoundary = {
   get(reference: FirestoreDocumentReference): Promise<FirestoreDocumentSnapshot>;
   set(reference: FirestoreDocumentReference, data: unknown): unknown;
@@ -901,6 +998,59 @@ async function commitFencedTransactions(
       }
     });
   }
+}
+
+function deletionDocument(
+  collectionName: string,
+  document: { id: string; data(): unknown },
+  ownerField: string,
+  memberId: string,
+  firestore: FirestoreBoundary,
+): FencedDeleteOperation {
+  const data = firestoreRecord(document.data(), collectionName);
+  if (data[ownerField] !== memberId) invalidFirestoreData(`${collectionName}.${ownerField}`);
+  return {
+    reference: firestore.collection(collectionName).doc(document.id),
+    collectionName,
+    data,
+  };
+}
+
+async function commitFencedDeletes(
+  firestore: FirestoreBoundary,
+  guard: SyncWriteGuard,
+  operations: FencedDeleteOperation[],
+): Promise<void> {
+  for (const chunk of splitFencedDeletes(operations)) {
+    await firestore.runTransaction(async (transaction) => {
+      await assertSyncWriteGuard(firestore, transaction, guard);
+      for (const operation of chunk) transaction.delete(operation.reference);
+    });
+  }
+}
+
+function splitFencedDeletes(operations: FencedDeleteOperation[]): FencedDeleteOperation[][] {
+  const chunks: FencedDeleteOperation[][] = [];
+  let chunk: FencedDeleteOperation[] = [];
+  let chunkBytes = 0;
+  for (const operation of operations) {
+    const pathBytes = Buffer.byteLength(`${operation.collectionName}/${operation.reference.id}`, "utf8");
+    const dataBytes = Buffer.byteLength(JSON.stringify(operation.data), "utf8");
+    const operationBytes = FIRESTORE_OPERATION_OVERHEAD_BYTES
+      + FIRESTORE_SERIALIZED_SAFETY_MULTIPLIER * (pathBytes + dataBytes);
+    if (operationBytes > FIRESTORE_TRANSACTION_SAFE_BYTES) invalidFirestoreData("memberDelete.documentSize");
+    if (chunk.length > 0
+      && (chunk.length >= EVENT_BATCH_SIZE
+        || chunkBytes + operationBytes > FIRESTORE_TRANSACTION_SAFE_BYTES)) {
+      chunks.push(chunk);
+      chunk = [];
+      chunkBytes = 0;
+    }
+    chunk.push(operation);
+    chunkBytes += operationBytes;
+  }
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks;
 }
 
 function splitFencedOperations(
