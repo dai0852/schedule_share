@@ -321,7 +321,26 @@ a:focus-visible {
   font-weight: 900;
   height: 38px;
   justify-content: center;
+  overflow: hidden;
+  position: relative;
   width: 38px;
+}
+
+.memberAvatarInitial.hidden {
+  visibility: hidden;
+}
+
+.memberAvatarPhoto {
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  opacity: 0;
+  position: absolute;
+  width: 100%;
+}
+
+.memberAvatarPhoto.loaded {
+  opacity: 1;
 }
 
 .memberAvatar.small {

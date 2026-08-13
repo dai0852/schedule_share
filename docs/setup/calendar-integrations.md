@@ -20,7 +20,7 @@
 
 - 閲覧者は、許可済み社内ドメインのMicrosoft 365アカウントでFirebase Authenticationへログインします。他部署のアカウントも閲覧者として利用できます。
 - 管理者が営業メンバーを事前登録します。
-- Microsoft予定は、サーバー用EntraアプリとExchange Online Application RBACで、営業メールボックスだけを読み取ります。
+- Microsoft予定は、サーバー用EntraアプリとExchange Online Application RBACで、営業メールボックスだけを読み取ります。同じサーバー用アプリは、登録済み担当者のプロフィール写真表示に限ってGraphの `ProfilePhoto.Read.All` を使用します。
 - Google予定は、登録済みの営業メンバー本人が個人Googleアカウントで一度だけ読み取り同意します。
 - Cloud Schedulerが5分間隔で同期APIを呼び、Firestoreへ正規化済み予定を保存します。
 - 本文、参加者、添付、会議参加URLは取得・保存・返却しません。非公開予定は「予定あり」として扱います。
@@ -148,9 +148,20 @@ Entraでログイン用クライアントシークレットを作成した日に
 
 Microsoftは証明書またはフェデレーション資格情報を、クライアントシークレットより強い方式として推奨しています。現行実装は `MICROSOFT_CLIENT_SECRET` を使用するため、ここではSecret Managerへの保管、短い有効期限、期限前ローテーションを必須とします。将来、証明書対応を実装した段階で移行してください。[Microsoft Entraの資格情報管理](https://learn.microsoft.com/en-us/entra/identity-platform/how-to-add-credentials)
 
-### 2-3. Entraのテナント全体Graph権限を付けない
+### 2-3. プロフィール写真の読み取り権限だけを追加する
 
-サーバー用アプリの `APIのアクセス許可` では、テナント全体のMicrosoft Graph `Calendars.Read` アプリケーション権限を追加・同意しません。カレンダー権限は次のExchange Online Application RBACだけで付与します。
+担当者アイコンにMicrosoft 365の写真を表示するため、サーバー用アプリへ次の権限を追加します。
+
+1. Entraのサーバー用アプリで `APIのアクセス許可` → `アクセス許可の追加` → `Microsoft Graph` を開きます。
+2. `アプリケーションの許可` を選び、`ProfilePhoto.Read.All` だけを追加します。`委任されたアクセス許可` ではありません。
+3. `組織名に管理者の同意を与えます` を実行し、状態が「付与済み」になることを確認します。
+4. `Calendars.Read`、`Calendars.ReadWrite`、`User.Read.All` などを追加しません。
+
+Application権限の `ProfilePhoto.Read.All` はMicrosoft公式のプロフィール写真APIで最小権限として案内されています。ただし、この権限自体はテナントのユーザー写真を読み取れるため、アプリはコード上でactive登録済みメンバーのメールだけをGraphへ渡します。写真をFirestoreへ保存せず、認証済み利用者へ5分のprivate cacheで返します。[プロフィール写真取得API](https://learn.microsoft.com/en-us/graph/api/profilephoto-get) / [Microsoft Graph権限リファレンス](https://learn.microsoft.com/en-us/graph/permissions-reference)
+
+### 2-4. カレンダーのテナント全体Graph権限を付けない
+
+サーバー用アプリの `APIのアクセス許可` では、写真用の `ProfilePhoto.Read.All` 以外に、テナント全体のMicrosoft Graph `Calendars.Read` アプリケーション権限を追加・同意しません。カレンダー権限は次のExchange Online Application RBACだけで付与します。
 
 既にGraphのアプリケーション権限が付いている場合は、Exchange RBACの許可・拒否テストを完了した後、アプリ登録から権限定義を削除し、エンタープライズアプリ側の既存の管理者同意も取り消します。MicrosoftのApplication RBAC公式資料では、Entraの組織全体権限とExchange RBAC権限は加算され、組織全体権限が残るとRBACのメールボックス範囲を迂回できると明記されています。[Exchange Online Application RBAC](https://learn.microsoft.com/en-us/exchange/permissions-exo/application-rbac)
 
@@ -881,9 +892,10 @@ firebase firestore:indexes --project schedule-share-4ff0e
 - Firebase Microsoftプロバイダーのリダイレクトは `https://<FIREBASE_AUTH_DOMAIN>/__/auth/handler` である。
 - Google OAuthのリダイレクトは `https://<APP_HOSTING_DOMAIN>/api/google/oauth/callback` である。
 - Exchange Onlineの付与ロールは `Application Calendars.Read` だけである。
-- Entraにテナント全体のGraphカレンダー権限が残っていない。
+- EntraのGraph Application権限は写真表示用の `ProfilePhoto.Read.All` だけで、テナント全体のGraphカレンダー権限が残っていない。
 - `Test-ServicePrincipalAuthorization` は営業メールボックスでTrue、対象外でFalseである。
 - Graph実アクセスは営業メールボックスで200、対象外で403である。
+- 担当者のMicrosoft 365写真が表示され、写真未設定の担当者はイニシャル表示になる。写真変更はMicrosoft側の反映後、5分以内の再取得または再ログインで反映される。
 - Googleのスコープは `openid`、`email`、`calendar.readonly` だけである。
 - External/Testing中の営業GoogleアカウントはTest usersへ登録され、継続運用前に公開・検証方針が完了している。
 - `oauthStates.expiresAt` のFirestore TTLが有効である。

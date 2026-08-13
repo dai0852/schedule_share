@@ -9,9 +9,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNavigation } from "@/components/AppNavigation";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { LoginScreen } from "@/components/LoginScreen";
+import { MemberAvatar } from "@/components/MemberAvatar";
 import { MemberScheduleGrid } from "@/components/MemberScheduleGrid";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { TimeGridCalendar } from "@/components/TimeGridCalendar";
+import { useMemberPhotoUrls } from "@/components/useMemberPhotoUrls";
 import { getCalendarRange, getVisibleDays, moveSelectedDate, type ViewMode } from "@/domain/calendar";
 import type { PublicSalesMember } from "@/domain/member";
 import {
@@ -68,6 +70,11 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const isDemoMode = allowDemoAuth && !firebaseReady;
   const canLoad = !authInitializing
     && (isDemoMode || (firebaseReady && firebaseUser !== null));
+  const memberPhotoUrls = useMemberPhotoUrls(
+    members,
+    firebaseUser,
+    firebaseReady && firebaseUser !== null && !isDemoMode,
+  );
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -386,9 +393,11 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                       ? current.filter((id) => id !== member.id)
                       : [...current, member.id])}
                   />
-                  <span className="memberAvatar small" aria-hidden="true">
-                    {member.displayName.trim().slice(0, 1)}
-                  </span>
+                  <MemberAvatar
+                    displayName={member.displayName}
+                    photoUrl={memberPhotoUrls[member.id]}
+                    small
+                  />
                   <span>
                     <strong>{member.displayName}</strong>
                     <small>{member.department}</small>
@@ -461,7 +470,12 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           {error ? <p className="errorText">{error}</p> : null}
           {loading ? <p className="loadingText">予定を読み込んでいます…</p> : null}
           {mode === "members" ? (
-            <MemberScheduleGrid days={visibleDays} events={visibleEvents} members={visibleMembers} />
+              <MemberScheduleGrid
+                days={visibleDays}
+                events={visibleEvents}
+                members={visibleMembers}
+                memberPhotoUrls={memberPhotoUrls}
+              />
           ) : mode === "month" ? (
             <MonthCalendar days={visibleDays} selectedDate={selectedDate} events={visibleEvents} />
           ) : (

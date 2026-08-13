@@ -482,6 +482,21 @@ describe("memberStore", () => {
     await expect(store.findActiveMemberByMicrosoftEmail("takahashi@example.com")).rejects.toThrow("Firestore data is invalid: memberEmailIndex.memberId");
   });
 
+  it("公開IDからactiveメンバーだけを取得し、不正IDはFirestoreへ渡さない", async () => {
+    const { db, store } = createStore();
+    const member = await createMember(store, "photo@example.com");
+
+    await expect(store.getActiveMemberById(member.id)).resolves.toEqual(member);
+    await store.updateMember(member.id, { active: false });
+    await expect(store.getActiveMemberById(member.id)).resolves.toBeNull();
+    await expect(store.getActiveMemberById("missing-member")).resolves.toBeNull();
+
+    const operationsBeforeInvalidInput = db.operationLog.length;
+    await expect(store.getActiveMemberById("../other-member"))
+      .rejects.toThrow("メンバーIDが正しくありません。");
+    expect(db.operationLog).toHaveLength(operationsBeforeInvalidInput);
+  });
+
   it("許可されたメンバー項目だけを更新し、型偽装値を拒否する", async () => {
     const { store } = createStore();
     const member = await createMember(store, "takahashi@example.com");

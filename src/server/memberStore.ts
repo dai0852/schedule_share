@@ -99,6 +99,7 @@ export type GoogleConnectionAuthorization = Pick<
 
 export interface MemberStore {
   listMembers(): Promise<SalesMemberRecord[]>;
+  getActiveMemberById(memberId: string): Promise<SalesMemberRecord | null>;
   createMember(input: CreateMemberInput): Promise<SalesMemberRecord>;
   updateMember(memberId: string, input: UpdateMemberInput): Promise<SalesMemberRecord>;
   findActiveMemberByMicrosoftEmail(email: string): Promise<SalesMemberRecord | null>;
@@ -234,6 +235,14 @@ export function createMemberStore(
       return snapshot.docs
         .map((document) => decodeMember(document.data(), document.id))
         .sort((left, right) => left.displayName.localeCompare(right.displayName, "ja") || left.id.localeCompare(right.id));
+    },
+
+    async getActiveMemberById(memberId) {
+      const safeMemberId = publicMemberId(memberId);
+      const snapshot = await firestore.collection(MEMBERS_COLLECTION).doc(safeMemberId).get();
+      if (!snapshot.exists) return null;
+      const member = decodeMember(snapshot.data(), safeMemberId);
+      return member.active ? member : null;
     },
 
     async createMember(input) {
@@ -780,6 +789,12 @@ function validatedMicrosoftEmail(value: unknown): string {
 function generatedMemberId(value: unknown): string {
   if (typeof value !== "string" || !value) throw new Error("メンバーIDの生成に失敗しました。");
   return value;
+}
+
+function publicMemberId(value: unknown): string {
+  const id = boundedInputString(value, "メンバーIDが正しくありません。", 128);
+  if (!/^[A-Za-z0-9_-]+$/u.test(id)) throw new Error("メンバーIDが正しくありません。");
+  return id;
 }
 
 function firestoreRecord(value: unknown, type: string): Record<string, unknown> {

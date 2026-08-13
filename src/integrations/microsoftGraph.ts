@@ -10,12 +10,15 @@ const GRAPH_SELECT =
   "id,subject,start,end,location,isAllDay,isCancelled,isOnlineMeeting,onlineMeetingProvider,sensitivity";
 const GRAPH_TOP = "100";
 const GRAPH_TIMEZONE = "Tokyo Standard Time";
+const PROFILE_PHOTO_SIZE = "48x48";
 const MICROSOFT_REQUEST_TIMEOUT_MS = 10_000;
 const TOKEN_RESPONSE_MAX_BYTES = 64 * 1024;
 const GRAPH_PAGE_RESPONSE_MAX_BYTES = 8 * 1024 * 1024;
+const PROFILE_PHOTO_MAX_BYTES = 256 * 1024;
 const TOKEN_MAX_LENGTH = 8_192;
 const CLIENT_SECRET_MAX_LENGTH = 8_192;
 const USER_PRINCIPAL_NAME_MAX_LENGTH = 320;
+const PROFILE_TOKEN_CACHE_MS = 4 * 60 * 1_000;
 const EVENT_ID_MAX_LENGTH = 1_024;
 const EVENT_TEXT_MAX_LENGTH = 4_096;
 const EVENT_PROVIDER_MAX_LENGTH = 128;
@@ -36,6 +39,11 @@ export interface MicrosoftFetchParams {
   end: string;
   syncedAt: string;
   owner: EventOwnerContext;
+}
+
+export interface MicrosoftProfilePhoto {
+  contentType: "image/jpeg" | "image/png";
+  bytes: Uint8Array;
 }
 
 export interface MicrosoftFetchSafetyLimits {
@@ -71,6 +79,9 @@ export class MicrosoftGraphError extends Error {
   }
 }
 
+let cachedProfileToken: { configKey: string; token: string; expiresAt: number } | null = null;
+let pendingProfileToken: { configKey: string; promise: Promise<string> } | null = null;
+
 export async function getMicrosoftAppAccessToken(): Promise<string> {
   const tenantId = process.env.MICROSOFT_TENANT_ID;
   const clientId = process.env.MICROSOFT_CLIENT_ID;
@@ -99,6 +110,64 @@ export async function getMicrosoftAppAccessToken(): Promise<string> {
       throw new MicrosoftGraphError("invalid_response");
     }
     return value.access_token;
+  });
+}
+
+export async function getMicrosoftProfilePhotoAccessToken(): Promise<string> {
+  const configKey = profileTokenConfigKey();
+  const currentTime = Date.now();
+  if (cachedProfileToken
+    && cachedProfileToken.configKey === configKey
+    && cachedProfileToken.expiresAt > currentTime) {
+    return cachedProfileToken.token;
+  }
+  if (pendingProfileToken?.configKey === configKey) return pendingProfileToken.promise;
+
+  const promise = getMicrosoftAppAccessToken()
+    .then((token) => {
+      cachedProfileToken = {
+        configKey,
+        token,
+        expiresAt: Date.now() + PROFILE_TOKEN_CACHE_MS,
+      };
+      return token;
+    })
+    .finally(() => {
+      if (pendingProfileToken?.promise === promise) pendingProfileToken = null;
+    });
+  pendingProfileToken = { configKey, promise };
+  return promise;
+}
+
+export async function fetchMicrosoftProfilePhoto(params: {
+  accessToken: string;
+  userPrincipalName: string;
+}): Promise<MicrosoftProfilePhoto | null> {
+  if (!boundedNonBlankString(params.accessToken, TOKEN_MAX_LENGTH)
+    || !isValidUserPrincipalName(params.userPrincipalName)) {
+    throw new MicrosoftGraphError("invalid_request");
+  }
+  const userPrincipalName = params.userPrincipalName.trim().toLowerCase();
+  const url = new URL(
+    `${GRAPH_ORIGIN}/v1.0/users/${encodeURIComponent(userPrincipalName)}/photos/${PROFILE_PHOTO_SIZE}/$value`,
+  );
+  return withMicrosoftResponse(url, {
+    headers: { authorization: `Bearer ${params.accessToken}` },
+  }, async (response) => {
+    if (response.status === 404) {
+      await response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    if (!response.ok) throw classifyHttpError(response.status);
+    const contentType = normalizedProfilePhotoContentType(response.headers.get("content-type"));
+    if (!contentType) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new MicrosoftGraphError("invalid_response");
+    }
+    return {
+      contentType,
+      bytes: await readLimitedBytes(response, PROFILE_PHOTO_MAX_BYTES),
+    };
   });
 }
 
@@ -410,6 +479,61 @@ function classifyHttpError(status: number): MicrosoftGraphError {
 
 async function readLimitedJson(response: Response, maximumBytes: number): Promise<unknown> {
   return (await readLimitedJsonWithByteLength(response, maximumBytes)).value;
+}
+
+async function readLimitedBytes(response: Response, maximumBytes: number): Promise<Uint8Array> {
+  try {
+    const contentLength = response.headers.get("content-length");
+    if (contentLength !== null
+      && (!/^\d+$/.test(contentLength) || Number(contentLength) > maximumBytes)) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new Error("response too large");
+    }
+    if (!response.body) throw new Error("empty response");
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let byteLength = 0;
+    let streamEnded = false;
+    while (!streamEnded) {
+      const { done, value } = await reader.read();
+      streamEnded = done;
+      if (done) continue;
+      byteLength += value.byteLength;
+      if (byteLength > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error("response too large");
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(byteLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    if (bytes.byteLength === 0) throw new Error("empty response");
+    return bytes;
+  } catch (error) {
+    if (error instanceof MicrosoftGraphError) throw error;
+    if (isAbortError(error)) throw error;
+    throw new MicrosoftGraphError("invalid_response");
+  }
+}
+
+function normalizedProfilePhotoContentType(
+  value: string | null,
+): MicrosoftProfilePhoto["contentType"] | null {
+  const contentType = value?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType === "image/jpg" || contentType === "image/jpeg") return "image/jpeg";
+  return contentType === "image/png" ? contentType : null;
+}
+
+function profileTokenConfigKey(): string {
+  return [
+    process.env.MICROSOFT_TENANT_ID ?? "",
+    process.env.MICROSOFT_CLIENT_ID ?? "",
+    process.env.MICROSOFT_CLIENT_SECRET ?? "",
+  ].join("\u0000");
 }
 
 async function readLimitedJsonWithByteLength(

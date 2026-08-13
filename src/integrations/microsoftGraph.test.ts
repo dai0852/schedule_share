@@ -2,7 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   fetchAllMicrosoftCalendarView,
+  fetchMicrosoftProfilePhoto,
   getMicrosoftAppAccessToken,
+  getMicrosoftProfilePhotoAccessToken,
 } from "./microsoftGraph";
 
 const ORIGINAL_ENV = process.env;
@@ -117,6 +119,103 @@ describe("getMicrosoftAppAccessToken", () => {
 
     await assertion;
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("fetchMicrosoftProfilePhoto", () => {
+  it("同時に並ぶ写真取得では短時間キャッシュしたapp tokenを共有する", async () => {
+    process.env.MICROSOFT_TENANT_ID = "11111111-1111-4111-8111-111111111111";
+    process.env.MICROSOFT_CLIENT_ID = "22222222-2222-4222-8222-222222222222";
+    process.env.MICROSOFT_CLIENT_SECRET = "profile-photo-client-secret";
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      access_token: "shared-profile-token",
+    })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(Promise.all([
+      getMicrosoftProfilePhotoAccessToken(),
+      getMicrosoftProfilePhotoAccessToken(),
+      getMicrosoftProfilePhotoAccessToken(),
+    ])).resolves.toEqual([
+      "shared-profile-token",
+      "shared-profile-token",
+      "shared-profile-token",
+    ]);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("登録UPNの48x48写真だけをBearer認証で取得する", async () => {
+    const photoBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const fetchMock = vi.fn(async () => new Response(photoBytes, {
+      headers: { "content-type": "image/jpeg", "content-length": String(photoBytes.byteLength) },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchMicrosoftProfilePhoto({
+      accessToken: "profile-photo-access-token",
+      userPrincipalName: "sales+tokyo@example.co.jp",
+    })).resolves.toEqual({ contentType: "image/jpeg", bytes: photoBytes });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [input, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    expect(String(input)).toBe(
+      "https://graph.microsoft.com/v1.0/users/sales%2Btokyo%40example.co.jp/photos/48x48/$value",
+    );
+    expect(init.headers).toEqual({ authorization: "Bearer profile-photo-access-token" });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("写真未設定の404はエラーにせずnullにする", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("not found", { status: 404 })));
+
+    await expect(fetchMicrosoftProfilePhoto({
+      accessToken: "access-token",
+      userPrincipalName: "sales@example.co.jp",
+    })).resolves.toBeNull();
+  });
+
+  it.each([
+    ["image/svg+xml", new Uint8Array([1, 2, 3]), undefined],
+    ["image/jpeg", new Uint8Array([1, 2, 3]), String(256 * 1024 + 1)],
+    ["image/jpeg", new Uint8Array(), "0"],
+  ])("不正な写真応答 %s をfail closedにする", async (contentType, bytes, contentLength) => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(bytes, {
+      headers: {
+        "content-type": contentType,
+        ...(contentLength === undefined ? {} : { "content-length": contentLength }),
+      },
+    })));
+
+    await expect(fetchMicrosoftProfilePhoto({
+      accessToken: "access-token",
+      userPrincipalName: "sales@example.co.jp",
+    })).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("Microsoftのimage/jpgを標準のimage/jpegとして扱う", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(new Uint8Array([1]), {
+      headers: { "content-type": "image/jpg" },
+    })));
+
+    await expect(fetchMicrosoftProfilePhoto({
+      accessToken: "access-token",
+      userPrincipalName: "sales@example.co.jp",
+    })).resolves.toMatchObject({ contentType: "image/jpeg" });
+  });
+
+  it("不正なtokenとUPNはGraphへ送信しない", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchMicrosoftProfilePhoto({
+      accessToken: "token\nleak",
+      userPrincipalName: "sales@example.co.jp",
+    })).rejects.toMatchObject({ code: "invalid_request" });
+    await expect(fetchMicrosoftProfilePhoto({
+      accessToken: "access-token",
+      userPrincipalName: "https://evil.example/photo",
+    })).rejects.toMatchObject({ code: "invalid_request" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

@@ -15,6 +15,7 @@
 - 予定は担当・月表示で閲覧でき、表示期間を前後または今日へ移動できる。
 - 担当表示では営業メンバーを行、1週間の日付を列にして予定を横方向に比較できる。
 - 表示する担当者は複数選択でき、選択変更は取得済み予定へ即時反映する。
+- 担当者アイコンはMicrosoft 365のプロフィール写真を使用し、未設定・取得失敗時はイニシャルへ戻す。
 
 ## Technical Stack
 - Next.js App Router
@@ -46,6 +47,8 @@ Cloud Schedulerは5分間隔で内部同期APIを呼び、GoogleとMicrosoftを�
 閲覧画面の初期表示は1週間の担当ビューとし、担当者を固定した左列、月曜日から日曜日までの横列、日ごとの予定カードで構成する。表示切替は担当・月だけを提供する。担当者の複数選択はクライアント側の表示フィルターとして扱い、APIと `NormalizedEvent` の公開契約は変更しない。
 
 Microsoft Graphから取得するOutlook予定は、Teams会議かどうかにかかわらず画面上では「Microsoft」として統一する。Google予定は青、Microsoft予定は紫で表示し、文字ラベルも併用する。過去に保存された `teams` sourceは互換性のため読み取り可能とし、Microsoft表示・Microsoftフィルターへ含め、次回のMicrosoft同期で `microsoft` sourceへ置き換える。
+
+担当者アイコンは、事前登録済みactiveメンバーのMicrosoft 365プロフィール写真をGraphの固定48×48エンドポイントからサーバー経由で取得する。写真データはFirestoreへ保存せず、Firebase認証済み画面へprivate cacheで返す。画面は5分ごとに再取得し、写真未設定・権限不足・上流失敗時はイニシャルを表示する。client credentialsのGraph token、メンバーのMicrosoftメールアドレスはブラウザへ返さない。
 
 本番公開originは会社が所有しSearch Consoleで確認済みのApp Hostingカスタムドメインとする。Google OAuth callback、公開ホームページ、プライバシーポリシー、Firebase Authenticationの承認済みドメインをこの会社ドメインへ揃え、Firebase発行の `*.hosted.app` はTesting・開発確認に限定する。App Hostingのsecretは対象バックエンドとリージョンを明示してアクセスを付与し、Consoleが同名YAML変数を上書きしていないことを監査する。Cloud Schedulerの `x-sync-secret` はjob閲覧権限から見える可能性があるため、fullView権限を最小化し、監査と即時ローテーション手順を維持する。
 

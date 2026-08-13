@@ -5,15 +5,18 @@ import type { CSSProperties } from "react";
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
 import type { PublicSalesMember } from "@/domain/member";
 import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
+import { MemberAvatar } from "@/components/MemberAvatar";
 
 export function MemberScheduleGrid({
   days,
   events,
   members,
+  memberPhotoUrls = {},
 }: {
   days: Date[];
   events: NormalizedEvent[];
   members: PublicSalesMember[];
+  memberPhotoUrls?: Record<string, string>;
 }) {
   const gridStyle = { "--calendar-columns": days.length } as CSSProperties;
 
@@ -51,9 +54,7 @@ export function MemberScheduleGrid({
           return (
             <div className="memberScheduleRow" key={member.id} role="row">
               <div className="memberScheduleMember" role="rowheader">
-                <span className="memberAvatar" aria-hidden="true">
-                  {member.displayName.trim().slice(0, 1)}
-                </span>
+                <MemberAvatar displayName={member.displayName} photoUrl={memberPhotoUrls[member.id]} />
                 <span>
                   <strong>{member.displayName}</strong>
                   <small>{member.department}</small>
