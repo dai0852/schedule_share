@@ -26,3 +26,5 @@ ui-debug.log
 .superpowers/
 .worktrees/
 .playwright-cli/
+output/
+.DS_Store
