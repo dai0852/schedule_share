@@ -1,6 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">営業スケジュール共有</title>
+  <desc id="desc">方眼紙を背景にした共有カレンダーのアイコン</desc>
+
+  <defs>
+    <clipPath id="corner">
+      <rect width="64" height="64" rx="16"/>
+    </clipPath>
+  </defs>
+
   <rect width="64" height="64" rx="16" fill="#00ac94"/>
-  <rect x="13" y="17" width="38" height="34" rx="7" fill="#fff" stroke="#000" stroke-width="2"/>
-  <path d="M13 27h38M23 13v9M41 13v9" fill="none" stroke="#000" stroke-linecap="round" stroke-width="3"/>
-  <path d="M22 35h5M31 35h5M40 35h2M22 43h5M31 43h5M40 43h2" fill="none" stroke="#00ac94" stroke-linecap="round" stroke-width="3"/>
+  <g clip-path="url(#corner)" fill="none" stroke="#fff" stroke-width="1" opacity=".28">
+    <path d="M8 0v64M20 0v64M32 0v64M44 0v64M56 0v64M0 8h64M0 20h64M0 32h64M0 44h64M0 56h64"/>
+  </g>
+  <rect x="1" y="1" width="62" height="62" rx="15" fill="none" stroke="#000" stroke-width="2"/>
+
+  <rect x="10" y="15" width="38" height="34" rx="7" fill="#fff" stroke="#000" stroke-width="2"/>
+  <path d="M10 26h38M20 11v9M38 11v9" fill="none" stroke="#000" stroke-linecap="round" stroke-width="3"/>
+  <path d="M18 34h5M28 34h5M38 34h2M18 42h5M28 42h5" fill="none" stroke="#00ac94" stroke-linecap="round" stroke-width="3"/>
+
+  <circle cx="48" cy="47" r="10" fill="#fff" stroke="#000" stroke-width="2"/>
+  <circle cx="45.2" cy="44.6" r="2.15" fill="#000"/>
+  <circle cx="50.8" cy="45.7" r="1.7" fill="#00ac94" stroke="#000" stroke-width="1"/>
+  <path d="M41.8 51.4c.5-3.05 2.05-4.6 4.05-4.6s3.55 1.55 4.05 4.6M48.55 51.35c.32-2.05 1.4-3.12 2.82-3.12.88 0 1.57.38 2.1 1.13" fill="none" stroke="#000" stroke-linecap="round" stroke-width="1.9"/>
 </svg>
