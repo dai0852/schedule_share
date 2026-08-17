@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "営業スケジュール共有",
   description: "Google CalendarとTeams会議を含むMicrosoft 365のOutlook予定を社内向けに集約する閲覧専用アプリ",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
