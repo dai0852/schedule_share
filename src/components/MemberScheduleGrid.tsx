@@ -12,11 +12,13 @@ export function MemberScheduleGrid({
   events,
   members,
   memberPhotoUrls = {},
+  onEventSelect,
 }: {
   days: Date[];
   events: NormalizedEvent[];
   members: PublicSalesMember[];
   memberPhotoUrls?: Record<string, string>;
+  onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   const gridStyle = { "--calendar-columns": days.length } as CSSProperties;
 
@@ -66,6 +68,7 @@ export function MemberScheduleGrid({
                   events={memberEvents}
                   key={toDayKey(day)}
                   memberName={member.displayName}
+                  onEventSelect={onEventSelect}
                 />
               ))}
             </div>
@@ -80,10 +83,12 @@ function MemberDayCell({
   day,
   events,
   memberName,
+  onEventSelect,
 }: {
   day: Date;
   events: NormalizedEvent[];
   memberName: string;
+  onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   const dayEvents = eventsForDay(events, day)
     .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
@@ -97,7 +102,7 @@ function MemberDayCell({
       aria-label={`${memberName} ${format(day, "M月d日", { locale: ja })}`}
     >
       {allDayEvents.map((event) => (
-        <MemberEventCard day={day} event={event} key={event.eventId} />
+        <MemberEventCard day={day} event={event} key={event.eventId} onEventSelect={onEventSelect} />
       ))}
       {timedGroups.map((group) => {
         const groupStyle = { "--member-overlap-columns": group.lanes.length } as CSSProperties;
@@ -124,7 +129,7 @@ function MemberDayCell({
                 key={event.eventId}
                 style={{ gridColumn: laneIndex + 1 }}
               >
-                <MemberEventCard day={day} event={event} />
+                <MemberEventCard day={day} event={event} onEventSelect={onEventSelect} />
               </div>
             ))}
           </div>
@@ -174,11 +179,21 @@ function groupOverlappingEvents(events: NormalizedEvent[], day: Date): TimedEven
   return groups;
 }
 
-function MemberEventCard({ day, event }: { day: Date; event: NormalizedEvent }) {
+function MemberEventCard({
+  day,
+  event,
+  onEventSelect,
+}: {
+  day: Date;
+  event: NormalizedEvent;
+  onEventSelect?: (event: NormalizedEvent) => void;
+}) {
   return (
-    <article
+    <button
+      aria-label={`${event.title}の予定詳細を開く`}
       className={`memberScheduleEvent ${event.source}`}
-      title={`${event.title} / ${event.ownerName}`}
+      onClick={() => onEventSelect?.(event)}
+      type="button"
     >
       <span className="memberScheduleEventMeta">
         <time>
@@ -192,7 +207,7 @@ function MemberEventCard({ day, event }: { day: Date; event: NormalizedEvent }) 
       </span>
       <strong>{event.title}</strong>
       {event.location ? <span className="memberScheduleLocation">{event.location}</span> : null}
-    </article>
+    </button>
   );
 }
 

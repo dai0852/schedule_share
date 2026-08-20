@@ -2,6 +2,7 @@
 
 import "@testing-library/jest-dom/vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { format } from "date-fns";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +43,7 @@ const secondMember: PublicSalesMember = {
   displayName: "佐藤 次郎",
   department: "営業二課",
 };
+const visibleDate = format(new Date(), "yyyy-MM-dd");
 const event: NormalizedEvent = {
   eventId: `google:${memberId}:g-1`,
   source: "google",
@@ -51,8 +53,8 @@ const event: NormalizedEvent = {
   calendarId: "primary",
   title: "顧客訪問",
   location: "名古屋",
-  start: "2026-08-11T09:30:00+09:00",
-  end: "2026-08-11T10:30:00+09:00",
+  start: `${visibleDate}T09:30:00+09:00`,
+  end: `${visibleDate}T10:30:00+09:00`,
   isOnlineMeeting: false,
   visibility: "team",
   updatedAt: "2026-08-10T12:00:00.000Z",
@@ -197,6 +199,27 @@ describe("ScheduleApp", () => {
       expect(init).toMatchObject({ headers: { authorization: "Bearer other-dept-token" } });
     }
     expect(screen.queryByRole("link", { name: "Googleカレンダー接続" })).not.toBeInTheDocument();
+  });
+
+  it("予定カードをクリックすると公開済みの予定詳細をポップアップで確認できる", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    installApiFetch({ events: { events: [event] } });
+
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    fireEvent.click(await screen.findByRole("button", { name: "顧客訪問の予定詳細を開く" }));
+
+    const dialog = screen.getByRole("dialog", { name: "予定の詳細" });
+    expect(dialog).toHaveTextContent("顧客訪問");
+    expect(dialog).toHaveTextContent("田中 花子");
+    expect(dialog).toHaveTextContent(/09:30〜10:30/);
+    expect(dialog).toHaveTextContent("Google");
+    expect(dialog).toHaveTextContent("名古屋");
+
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "予定の詳細" })).not.toBeInTheDocument();
   });
 
   it("active登録メンバーだけにGoogle接続管理リンクを表示する", async () => {

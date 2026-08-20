@@ -9,10 +9,12 @@ export function MonthCalendar({
   days,
   selectedDate,
   events,
+  onEventSelect,
 }: {
   days: Date[];
   selectedDate: Date;
   events: NormalizedEvent[];
+  onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   return (
     <div className="calendarScroller monthScroller">
@@ -36,10 +38,12 @@ export function MonthCalendar({
             <section className={className} key={toDayKey(day)}>
               <time>{format(day, "d")}</time>
               {dayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => (
-                <article
+                <button
+                  aria-label={`${event.title}の予定詳細を開く`}
                   className={`monthEvent ${event.source}`}
                   key={event.eventId}
-                  title={`${event.title} / ${event.ownerName}`}
+                  onClick={() => onEventSelect?.(event)}
+                  type="button"
                 >
                   <span
                     className="eventSourceLabel"
@@ -49,7 +53,7 @@ export function MonthCalendar({
                   </span>{" "}
                   {!isAllDayEvent(event) ? <span>{format(new Date(event.start), "HH:mm")}</span> : null}{" "}
                   {event.title}
-                </article>
+                </button>
               ))}
               {dayEvents.length > MAX_VISIBLE_EVENTS ? (
                 <span className="moreEvents">ほか{dayEvents.length - MAX_VISIBLE_EVENTS}件</span>

@@ -15,9 +15,11 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 export function TimeGridCalendar({
   days,
   events,
+  onEventSelect,
 }: {
   days: Date[];
   events: NormalizedEvent[];
+  onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   const segments = layoutTimedEvents(events, days);
   const allDayEvents = events.filter(isAllDayEvent);
@@ -40,7 +42,7 @@ export function TimeGridCalendar({
         {days.map((day) => (
           <div className="allDayCell" key={toDayKey(day)}>
             {eventsForDay(allDayEvents, day).map((event) => (
-              <EventCard key={event.eventId} event={event} compact />
+              <EventCard key={event.eventId} event={event} compact onEventSelect={onEventSelect} />
             ))}
           </div>
         ))}
@@ -75,7 +77,7 @@ export function TimeGridCalendar({
                       width: `${100 / segment.columnCount}%`,
                     }}
                   >
-                    <EventCard event={segment.event} />
+                    <EventCard event={segment.event} onEventSelect={onEventSelect} />
                   </div>
                 ))}
             </div>
@@ -86,11 +88,21 @@ export function TimeGridCalendar({
   );
 }
 
-function EventCard({ event, compact = false }: { event: NormalizedEvent; compact?: boolean }) {
+function EventCard({
+  event,
+  compact = false,
+  onEventSelect,
+}: {
+  event: NormalizedEvent;
+  compact?: boolean;
+  onEventSelect?: (event: NormalizedEvent) => void;
+}) {
   return (
-    <article
+    <button
+      aria-label={`${event.title}の予定詳細を開く`}
       className={`calendarEventCard ${event.source}`}
-      title={`${event.title} / ${event.ownerName}`}
+      onClick={() => onEventSelect?.(event)}
+      type="button"
     >
       <span className="eventSourceLabel" aria-label={`予定元: ${CALENDAR_SOURCE_LABELS[event.source]}`}>
         {CALENDAR_SOURCE_LABELS[event.source]}
@@ -105,6 +117,6 @@ function EventCard({ event, compact = false }: { event: NormalizedEvent; compact
         {event.ownerName}
         {event.location ? ` / ${event.location}` : ""}
       </span>
-    </article>
+    </button>
   );
 }

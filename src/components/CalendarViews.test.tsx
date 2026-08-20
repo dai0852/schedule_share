@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CalendarSource, NormalizedEvent } from "@/domain/schedule";
 import { MemberScheduleGrid } from "./MemberScheduleGrid";
@@ -53,6 +53,25 @@ describe("calendar source labels", () => {
     expect(screen.queryByText("Teams")).not.toBeInTheDocument();
     expect(screen.getByLabelText("予定元: Google")).toBeInTheDocument();
     expect(screen.getAllByLabelText("予定元: Microsoft")).toHaveLength(2);
+  });
+});
+
+describe("予定カードの詳細表示", () => {
+  it("月表示の予定カードから詳細表示を開ける", () => {
+    const onEventSelect = vi.fn();
+    const event = sourceEvent("google", 0);
+
+    render(
+      <MonthCalendar
+        days={[day]}
+        selectedDate={day}
+        events={[event]}
+        onEventSelect={onEventSelect}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "google予定の予定詳細を開く" }));
+    expect(onEventSelect).toHaveBeenCalledWith(event);
   });
 });
 
@@ -147,7 +166,7 @@ describe("member schedule grid", () => {
 
     const overlapGroup = screen.getByRole("group", { name: "10:00から重なる予定 3件" });
     expect(overlapGroup).toHaveStyle("--member-overlap-columns: 2");
-    expect(overlapGroup.querySelectorAll("article")).toHaveLength(3);
+    expect(overlapGroup.querySelectorAll("button")).toHaveLength(3);
   });
 
   it("連鎖して重なる予定もDOMでは開始時刻順に並べる", () => {
@@ -179,8 +198,8 @@ describe("member schedule grid", () => {
     );
 
     const overlapGroup = screen.getByRole("group", { name: "09:00から重なる予定 3件" });
-    expect([...overlapGroup.querySelectorAll("article")].map((article) => article.title))
-      .toEqual(["最初の予定 / 佐藤", "長時間の予定 / 佐藤", "最後の予定 / 佐藤"]);
+    expect([...overlapGroup.querySelectorAll("button")].map((button) => button.textContent))
+      .toEqual(["09:00–10:00Google最初の予定", "09:30–11:00Microsoft長時間の予定", "10:00–10:30Google最後の予定"]);
   });
 
   it("終了時刻と開始時刻が同じ連続予定は別の縦グループにする", () => {

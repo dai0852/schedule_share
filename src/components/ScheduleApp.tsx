@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNavigation } from "@/components/AppNavigation";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
+import { EventDetailsDialog } from "@/components/EventDetailsDialog";
 import { LoginScreen } from "@/components/LoginScreen";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { MemberScheduleGrid } from "@/components/MemberScheduleGrid";
@@ -58,6 +59,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const [selectedDate, setSelectedDate] = useState(() => new Date());
   const [deselectedOwnerIds, setDeselectedOwnerIds] = useState<string[]>([]);
   const [selectedSource, setSelectedSource] = useState<DisplayCalendarSource>("all");
+  const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
@@ -483,11 +485,17 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                 events={visibleEvents}
                 members={visibleMembers}
                 memberPhotoUrls={memberPhotoUrls}
+                onEventSelect={setSelectedEvent}
               />
           ) : mode === "month" ? (
-            <MonthCalendar days={visibleDays} selectedDate={selectedDate} events={visibleEvents} />
+            <MonthCalendar
+              days={visibleDays}
+              selectedDate={selectedDate}
+              events={visibleEvents}
+              onEventSelect={setSelectedEvent}
+            />
           ) : (
-            <TimeGridCalendar days={visibleDays} events={visibleEvents} />
+            <TimeGridCalendar days={visibleDays} events={visibleEvents} onEventSelect={setSelectedEvent} />
           )}
           {!loading && !error && visibleEvents.length === 0 ? (
             <p className="emptyText calendarEmpty">
@@ -498,11 +506,13 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           ) : null}
         </section>
       </section>
+      <EventDetailsDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </main>
   );
 
   function clearVisibleEvents() {
     setEvents([]);
+    setSelectedEvent(null);
     setError(null);
   }
 }
