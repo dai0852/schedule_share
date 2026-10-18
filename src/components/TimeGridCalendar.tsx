@@ -7,7 +7,9 @@ import {
   layoutTimedEvents,
   toDayKey,
 } from "@/domain/calendar";
-import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
+import { getCompactEventLocation } from "@/domain/eventPresentation";
+import { createMemberColorMap, getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
+import type { NormalizedEvent } from "@/domain/schedule";
 
 const HOUR_HEIGHT = 48;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -15,15 +17,18 @@ const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 export function TimeGridCalendar({
   days,
   events,
+  memberColors,
   onEventSelect,
 }: {
   days: Date[];
   events: NormalizedEvent[];
+  memberColors?: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   const segments = layoutTimedEvents(events, days);
   const allDayEvents = events.filter(isAllDayEvent);
   const gridStyle = { "--calendar-columns": days.length } as CSSProperties;
+  const colors = memberColors ?? createMemberColorMap(events.map((event) => event.ownerUserId));
 
   return (
     <div className="calendarScroller timeGridScroller">
@@ -42,7 +47,7 @@ export function TimeGridCalendar({
         {days.map((day) => (
           <div className="allDayCell" key={toDayKey(day)}>
             {eventsForDay(allDayEvents, day).map((event) => (
-              <EventCard key={event.eventId} event={event} compact onEventSelect={onEventSelect} />
+              <EventCard key={event.eventId} event={event} compact memberColors={colors} onEventSelect={onEventSelect} />
             ))}
           </div>
         ))}
@@ -77,7 +82,7 @@ export function TimeGridCalendar({
                       width: `${100 / segment.columnCount}%`,
                     }}
                   >
-                    <EventCard event={segment.event} onEventSelect={onEventSelect} />
+                    <EventCard event={segment.event} memberColors={colors} onEventSelect={onEventSelect} />
                   </div>
                 ))}
             </div>
@@ -91,22 +96,23 @@ export function TimeGridCalendar({
 function EventCard({
   event,
   compact = false,
+  memberColors,
   onEventSelect,
 }: {
   event: NormalizedEvent;
   compact?: boolean;
+  memberColors: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
+  const location = getCompactEventLocation(event.location);
   return (
     <button
       aria-label={`${event.title}の予定詳細を開く`}
-      className={`calendarEventCard ${event.source}`}
+      className="calendarEventCard memberColoredEvent"
       onClick={() => onEventSelect?.(event)}
+      style={getMemberColorStyle(event.ownerUserId, memberColors)}
       type="button"
     >
-      <span className="eventSourceLabel" aria-label={`予定元: ${CALENDAR_SOURCE_LABELS[event.source]}`}>
-        {CALENDAR_SOURCE_LABELS[event.source]}
-      </span>
       {!compact ? (
         <time>
           {format(new Date(event.start), "HH:mm")}–{format(new Date(event.end), "HH:mm")}
@@ -115,7 +121,7 @@ function EventCard({
       <strong>{event.title}</strong>
       <span>
         {event.ownerName}
-        {event.location ? ` / ${event.location}` : ""}
+        {location ? ` / ${location}` : ""}
       </span>
     </button>
   );

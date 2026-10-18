@@ -3,6 +3,7 @@ import { ja } from "date-fns/locale";
 import { ChevronDown } from "lucide-react";
 
 import { eventsForDay, isAllDayEvent } from "@/domain/calendar";
+import { getCompactEventLocation } from "@/domain/eventPresentation";
 import type { PublicSalesMember } from "@/domain/member";
 import {
   createMemberColorMap,
@@ -68,6 +69,7 @@ export function DayAgenda({
                 <ul className="dayAgendaList">
                   {ownerEvents.map((event) => {
                     const { time, continuation } = getEventTimeForDay(event, day);
+                    const location = getCompactEventLocation(event.location);
                     return (
                       <li key={event.eventId}>
                         <button
@@ -80,8 +82,8 @@ export function DayAgenda({
                           <span className="dayAgendaContent">
                             <span className="dayAgendaOwner">{event.ownerName}</span>
                             <strong>{event.title}</strong>
-                            {event.location ? (
-                              <span className="dayAgendaLocation">{event.location}</span>
+                            {location ? (
+                              <span className="dayAgendaLocation">{location}</span>
                             ) : null}
                             {continuation ? (
                               <span className="dayAgendaContinuation">{continuation}</span>

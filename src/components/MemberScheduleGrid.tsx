@@ -3,6 +3,7 @@ import { ja } from "date-fns/locale";
 import type { CSSProperties } from "react";
 
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
+import { getCompactEventLocation } from "@/domain/eventPresentation";
 import type { PublicSalesMember } from "@/domain/member";
 import type { NormalizedEvent } from "@/domain/schedule";
 import { createMemberColorMap, getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
@@ -207,6 +208,7 @@ function MemberEventCard({
   memberColors: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
+  const location = getCompactEventLocation(event.location);
   return (
     <button
       aria-label={`${event.title}の予定詳細を開く`}
@@ -224,7 +226,7 @@ function MemberEventCard({
         <span>{event.ownerName}</span>
       </span>
       <strong>{event.title}</strong>
-      {event.location ? <span className="memberScheduleLocation">{event.location}</span> : null}
+      {location ? <span className="memberScheduleLocation">{location}</span> : null}
     </button>
   );
 }

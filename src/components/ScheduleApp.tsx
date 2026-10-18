@@ -90,10 +90,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   useEffect(() => {
     if (!window.matchMedia) return;
     const media = window.matchMedia("(max-width: 760px)");
-    const update = () => {
-      setIsMobile(media.matches);
-      if (media.matches) setMode("month");
-    };
+    const update = () => setIsMobile(media.matches);
     update();
     media.addEventListener("change", update);
     return () => media.removeEventListener("change", update);
@@ -381,7 +378,6 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           <CalendarToolbar
             title={title}
             mode={mode}
-            showModeSwitch={!isMobile}
             eventCount={visibleEvents.length}
             onToday={() => {
               const today = new Date();

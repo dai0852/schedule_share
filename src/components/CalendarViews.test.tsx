@@ -35,14 +35,16 @@ const events = (["google", "microsoft", "teams"] as const)
 afterEach(cleanup);
 
 describe("calendar source labels", () => {
-  it("日・週のtime gridで各予定元を色だけでなく可視テキストとaria-labelで示す", () => {
+  it("日・週のtime gridで予定元ラベルを出さず、同じ担当者には同じ色を使う", () => {
     render(<TimeGridCalendar days={[day]} events={events} />);
 
-    expect(screen.getByText("Google")).toBeVisible();
-    expect(screen.getAllByText("Microsoft")).toHaveLength(2);
-    expect(screen.queryByText("Teams")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("予定元: Google")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("予定元: Microsoft")).toHaveLength(2);
+    const cards = screen.getAllByRole("button", { name: /の予定詳細を開く/ });
+    expect(cards).toHaveLength(3);
+    expect(cards.map((card) => card.getAttribute("style")))
+      .toEqual([cards[0].getAttribute("style"), cards[0].getAttribute("style"), cards[0].getAttribute("style")]);
+    expect(cards.every((card) => card.classList.contains("memberColoredEvent"))).toBe(true);
+    expect(screen.queryByLabelText(/予定元:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^(Google|Microsoft|Teams)$/)).not.toBeInTheDocument();
   });
 
   it("月表示では予定元に関係なく担当者名と同じ色で表示する", () => {

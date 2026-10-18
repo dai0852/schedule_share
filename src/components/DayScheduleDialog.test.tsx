@@ -100,4 +100,15 @@ describe("日付の予定ポップアップ", () => {
     expect(within(table).getByLabelText("田中の時間別予定")).toBeInTheDocument();
     expect(within(table).getByRole("button", { name: /09:00.*10:00.*顧客訪問/ })).toBeInTheDocument();
   });
+
+  it("モバイルpopupはタブを持たず担当者ごとの予定一覧を表示する", () => {
+    render(<Harness />);
+    fireEvent.click(screen.getByRole("button", { name: "予定を開く" }));
+    const dialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(dialog).not.toHaveClass("desktopDayScheduleDialog");
+    expect(within(dialog).queryByRole("tablist")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("table")).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("region", { name: "選択日の予定" })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("佐藤の予定1件")).toBeInTheDocument();
+  });
 });

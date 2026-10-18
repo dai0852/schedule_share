@@ -6,6 +6,7 @@ import { useEffect, useRef, type CSSProperties } from "react";
 
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { eventsForDay, isAllDayEvent, layoutTimedEvents, type TimedEventSegment } from "@/domain/calendar";
+import { getCompactEventLocation } from "@/domain/eventPresentation";
 import type { PublicSalesMember } from "@/domain/member";
 import { getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
 import type { NormalizedEvent } from "@/domain/schedule";
@@ -115,19 +116,22 @@ export function MemberDayTimeline({
             <div className="memberDayAllDayCorner" role="rowheader">終日</div>
             {columns.map((column) => (
               <div className="memberDayAllDay" role="cell" aria-label={`${column.name}の終日予定`} key={`allDay:${column.id}`}>
-                {column.events.filter(isAllDayEvent).map((event) => (
-                  <button
-                    className="memberDayAllDayEvent memberColoredEvent"
-                    key={event.eventId}
-                    onClick={() => onEventSelect?.(event)}
-                    style={getMemberColorStyle(column.id, memberColors)}
-                    type="button"
-                  >
-                    <span>終日</span>
-                    <strong>{event.title}</strong>
-                    {event.location ? <span>{event.location}</span> : null}
-                  </button>
-                ))}
+                {column.events.filter(isAllDayEvent).map((event) => {
+                  const location = getCompactEventLocation(event.location);
+                  return (
+                    <button
+                      className="memberDayAllDayEvent memberColoredEvent"
+                      key={event.eventId}
+                      onClick={() => onEventSelect?.(event)}
+                      style={getMemberColorStyle(column.id, memberColors)}
+                      type="button"
+                    >
+                      <span>終日</span>
+                      <strong>{event.title}</strong>
+                      {location ? <span>{location}</span> : null}
+                    </button>
+                  );
+                })}
               </div>
             ))}
             </div>
@@ -149,6 +153,7 @@ export function MemberDayTimeline({
               >
                 {timedColumns[index].map((segment) => {
                   const event = segment.event;
+                  const location = getCompactEventLocation(event.location);
                   const dayStart = startOfDay(day).getTime();
                   const dayEnd = addDays(startOfDay(day), 1).getTime();
                   const continuation = [
@@ -166,14 +171,14 @@ export function MemberDayTimeline({
                       <button
                         className={`memberDayEvent memberColoredEvent${segment.displayEnd - segment.displayStart < 30
                           ? " memberDayEventShort" : segment.displayEnd - segment.displayStart < 60 ? " memberDayEventBrief" : ""}`}
-                        title={`${minuteLabel(segment.startMinutes)}–${minuteLabel(segment.endMinutes)} ${event.title}${event.location ? ` / ${event.location}` : ""}${continuation ? ` / ${continuation}` : ""}`}
+                        title={`${minuteLabel(segment.startMinutes)}–${minuteLabel(segment.endMinutes)} ${event.title}${location ? ` / ${location}` : ""}${continuation ? ` / ${continuation}` : ""}`}
                         onClick={() => onEventSelect?.(event)}
                         style={getMemberColorStyle(column.id, memberColors)}
                         type="button"
                       >
                         <time>{minuteLabel(segment.startMinutes)}–{minuteLabel(segment.endMinutes)}</time>
                         <strong>{event.title}</strong>
-                        {event.location ? <span className="memberDayLocation">{event.location}</span> : null}
+                        {location ? <span className="memberDayLocation">{location}</span> : null}
                         {continuation ? (
                           <span className="memberDayContinuation">{continuation}</span>
                         ) : null}

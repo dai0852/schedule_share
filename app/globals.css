@@ -1663,7 +1663,8 @@ a:focus-visible {
 
 .monthEvent.memberColoredEvent,
 .memberScheduleEvent.memberColoredEvent,
-.dayAgendaEvent.memberColoredEvent {
+.dayAgendaEvent.memberColoredEvent,
+.calendarEventCard.memberColoredEvent {
   background: var(--member-bg);
   border-left-color: var(--member-color);
   color: var(--member-text);
@@ -1785,10 +1786,12 @@ a:focus-visible {
 }
 .memberDayTimelineScroller:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .memberDayTimelineGrid {
+  --timeline-axis-width: 64px;
+  --timeline-member-width: 210px;
   display: grid;
-  grid-template-columns: 64px repeat(var(--timeline-columns), minmax(210px, 1fr));
+  grid-template-columns: var(--timeline-axis-width) repeat(var(--timeline-columns), minmax(var(--timeline-member-width), 1fr));
   grid-template-rows: 72px minmax(44px, auto) var(--timeline-height);
-  min-width: calc(64px + var(--timeline-columns) * 210px);
+  min-width: calc(var(--timeline-axis-width) + var(--timeline-columns) * var(--timeline-member-width));
   position: relative;
   width: 100%;
 }
@@ -1852,6 +1855,15 @@ a:focus-visible {
 .memberScheduleDaySelect { align-items: center; background: transparent; border: 0; border-radius: 10px; color: inherit; display: flex; gap: 7px; justify-content: center; min-height: 38px; padding: 0; width: 100%; }
 
 @media (max-width: 760px) {
+  .memberDayTimelineGrid { --timeline-axis-width: 48px; --timeline-member-width: 168px; }
+  .memberDayTimelineTitle h2 { font-size: 16px; }
+  .memberDayTimelineTitle > span { font-size: 11px; }
+  .memberDayHeader { gap: 6px; padding: 8px; }
+  .memberDayHeaderText strong { font-size: 13px; }
+  .memberDayHeaderText > span,
+  .memberDayHeaderText small { font-size: 10px; }
+  .memberDayAxis > span { font-size: 10px; right: 4px; }
+  .memberDayTimelineScroller { border-radius: 12px; max-height: min(60dvh, 520px); min-height: 160px; touch-action: pan-x pan-y; }
   .topbar {
     gap: 10px;
     margin: 12px 12px 0;
@@ -1936,7 +1948,8 @@ a:focus-visible {
   .monthOwnerDots { display: flex; gap: 3px; justify-content: center; min-height: 6px; }
   .monthOwnerDots .memberColorDot { height: 5px; width: 5px; }
   .monthDayCount { font-size: 9px; white-space: nowrap; }
-  .calendarMode { display: none; }
+  .calendarMode { flex: 1; min-width: 0; }
+  .calendarMode button { min-height: 40px; }
   .dayAgenda { margin-top: 18px; padding-top: 16px; }
   .dayAgendaHeader h2 { font-size: 16px; }
   .dayAgendaEvent { gap: 7px; grid-template-columns: minmax(0, 1fr); padding: 12px; }
@@ -1966,11 +1979,13 @@ a:focus-visible {
   .calendarNavigation h2 {
     font-size: 19px;
     margin: 0;
+    text-wrap: balance;
+    word-break: keep-all;
   }
 
   .calendarToolbarActions {
     margin-left: 0;
-    justify-content: flex-end;
+    justify-content: space-between;
     width: 100%;
   }
 
