@@ -4,7 +4,8 @@ import type { CSSProperties } from "react";
 
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
 import type { PublicSalesMember } from "@/domain/member";
-import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
+import type { NormalizedEvent } from "@/domain/schedule";
+import { getMemberColorStyle } from "@/domain/memberColor";
 import { MemberAvatar } from "@/components/MemberAvatar";
 
 export function MemberScheduleGrid({
@@ -56,6 +57,7 @@ export function MemberScheduleGrid({
           return (
             <div className="memberScheduleRow" key={member.id} role="row">
               <div className="memberScheduleMember" role="rowheader">
+                <span className="memberColorDot" style={getMemberColorStyle(member.id)} aria-hidden="true" />
                 <MemberAvatar displayName={member.displayName} photoUrl={memberPhotoUrls[member.id]} />
                 <span>
                   <strong>{member.displayName}</strong>
@@ -191,7 +193,8 @@ function MemberEventCard({
   return (
     <button
       aria-label={`${event.title}の予定詳細を開く`}
-      className={`memberScheduleEvent ${event.source}`}
+      className="memberScheduleEvent memberColoredEvent"
+      style={getMemberColorStyle(event.ownerUserId)}
       onClick={() => onEventSelect?.(event)}
       type="button"
     >
@@ -201,9 +204,7 @@ function MemberEventCard({
             ? "終日"
             : eventTimeForDay(event, day)}
         </time>
-        <span aria-label={`予定元: ${CALENDAR_SOURCE_LABELS[event.source]}`}>
-          {CALENDAR_SOURCE_LABELS[event.source]}
-        </span>
+        <span>{event.ownerName}</span>
       </span>
       <strong>{event.title}</strong>
       {event.location ? <span className="memberScheduleLocation">{event.location}</span> : null}

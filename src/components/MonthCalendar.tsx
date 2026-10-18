@@ -1,67 +1,92 @@
-import { format, isSameDay, isSameMonth } from "date-fns";
+import { addDays, format, isSameDay, isSameMonth, startOfDay } from "date-fns";
+import { ja } from "date-fns/locale";
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
-import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
+import { getMemberColorStyle } from "@/domain/memberColor";
+import type { NormalizedEvent } from "@/domain/schedule";
 
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 const MAX_VISIBLE_EVENTS = 3;
 
 export function MonthCalendar({
-  days,
-  selectedDate,
-  events,
-  onEventSelect,
+  days, displayedDate, selectedDate, events, onDaySelect, onEventSelect,
 }: {
   days: Date[];
+  displayedDate?: Date;
   selectedDate: Date;
   events: NormalizedEvent[];
+  onDaySelect?: (day: Date) => void;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   return (
-    <div className="calendarScroller monthScroller">
+    <div className="calendarScroller monthScroller" aria-label="月カレンダー">
       <div className="monthGrid">
-        {WEEKDAYS.map((day) => (
-          <div className="monthWeekday" key={day}>
-            {day}
-          </div>
-        ))}
+        {WEEKDAYS.map((day) => <div className="monthWeekday" key={day}>{day}</div>)}
         {days.map((day) => {
-          const dayEvents = eventsForDay(events, day);
+          const dayEvents = eventsForDay(events, day).sort((a, b) =>
+            Number(isAllDayEvent(b)) - Number(isAllDayEvent(a)) || Date.parse(a.start) - Date.parse(b.start));
+          const owners = [...new Map(dayEvents.map((event) => [event.ownerUserId, event])).values()];
+          const selected = isSameDay(day, selectedDate);
           const className = [
             "monthDay",
-            !isSameMonth(day, selectedDate) ? "outsideMonth" : "",
+            !isSameMonth(day, displayedDate ?? selectedDate) ? "outsideMonth" : "",
             isSameDay(day, new Date()) ? "today" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-
+            selected ? "selected" : "",
+          ].filter(Boolean).join(" ");
           return (
             <section className={className} key={toDayKey(day)}>
-              <time>{format(day, "d")}</time>
-              {dayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => (
-                <button
-                  aria-label={`${event.title}の予定詳細を開く`}
-                  className={`monthEvent ${event.source}`}
-                  key={event.eventId}
-                  onClick={() => onEventSelect?.(event)}
-                  type="button"
-                >
-                  <span
-                    className="eventSourceLabel"
-                    aria-label={`予定元: ${CALENDAR_SOURCE_LABELS[event.source]}`}
+              <button
+                className="monthDaySelect"
+                aria-label={`${format(day, "yyyy年M月d日", { locale: ja })}、予定${dayEvents.length}件`}
+                aria-pressed={selected}
+                aria-current={isSameDay(day, new Date()) ? "date" : undefined}
+                onClick={() => onDaySelect?.(day)}
+                type="button"
+              >
+                <time dateTime={toDayKey(day)}>{format(day, "d")}</time>
+                {dayEvents.length > 0 ? (
+                  <span className="monthDaySummary" aria-hidden="true">
+                    <span className="monthOwnerDots">
+                      {owners.slice(0, 3).map((event) => (
+                        <span className="memberColorDot" style={getMemberColorStyle(event.ownerUserId)} key={event.ownerUserId} />
+                      ))}
+                    </span>
+                    <span className="monthDayCount">{dayEvents.length}件</span>
+                  </span>
+                ) : null}
+              </button>
+              <div className="monthDayEvents">
+                {dayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => (
+                  <button
+                    aria-label={`${event.title}の予定詳細を開く`}
+                    className="monthEvent memberColoredEvent"
+                    style={getMemberColorStyle(event.ownerUserId)}
+                    key={event.eventId}
+                    onClick={() => onEventSelect?.(event)}
+                    type="button"
                   >
-                    {CALENDAR_SOURCE_LABELS[event.source]}
-                  </span>{" "}
-                  {!isAllDayEvent(event) ? <span>{format(new Date(event.start), "HH:mm")}</span> : null}{" "}
-                  {event.title}
-                </button>
-              ))}
-              {dayEvents.length > MAX_VISIBLE_EVENTS ? (
-                <span className="moreEvents">ほか{dayEvents.length - MAX_VISIBLE_EVENTS}件</span>
-              ) : null}
+                    <span>{monthEventTimeLabel(event, day)} {event.ownerName}</span>
+                    <strong>{event.title}</strong>
+                  </button>
+                ))}
+                {dayEvents.length > MAX_VISIBLE_EVENTS ? (
+                  <button className="moreEvents" type="button" onClick={() => onDaySelect?.(day)}
+                    aria-label={`${format(day, "M月d日")}の予定をすべて表示`}>
+                    ほか{dayEvents.length - MAX_VISIBLE_EVENTS}件
+                  </button>
+                ) : null}
+              </div>
             </section>
           );
         })}
       </div>
     </div>
   );
+}
+
+function monthEventTimeLabel(event: NormalizedEvent, day: Date): string {
+  if (isAllDayEvent(event)) return "終日";
+  const start = Date.parse(event.start);
+  const before = start < startOfDay(day).getTime();
+  const after = Date.parse(event.end) > addDays(startOfDay(day), 1).getTime();
+  return `${before ? "00:00" : format(new Date(start), "HH:mm")}${before ? " 前日から継続" : ""}${after ? " 翌日へ継続" : ""}`;
 }

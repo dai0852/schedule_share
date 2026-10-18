@@ -919,6 +919,30 @@ describe("memberStore", () => {
     });
   });
 
+  it("保存内容が同じ予定は同期時刻が変わっても書かず、内容が変わった予定だけ更新する", async () => {
+    const { db, store } = createStore();
+    const range = { start: "2026-07-12T09:00:00.000Z", end: "2027-02-07T09:00:00.000Z", syncedAt: NOW };
+    const unchanged = normalizedEvent("member-1", "microsoft", "unchanged");
+    const changed = normalizedEvent("member-1", "microsoft", "changed");
+    const unchangedId = calendarEventDocumentId(unchanged.eventId);
+    const changedId = calendarEventDocumentId(changed.eventId);
+    db.seed("events", unchangedId, storedEvent(unchanged));
+    db.seed("events", changedId, storedEvent(changed));
+
+    await store.replaceProviderEvents("member-1", "microsoft", range, [
+      { ...unchanged, updatedAt: "2026-08-11T09:05:00.000Z" },
+      { ...changed, title: "訪問時間変更", updatedAt: "2026-08-11T09:05:00.000Z" },
+    ], await syncGuard(store));
+
+    expect(db.batchSizes).toEqual([1]);
+    expect(db.operationLog).toEqual([`set:events/${changedId}`]);
+    expect(db.read("events", unchangedId).data()).toMatchObject({ updatedAt: NOW });
+    expect(db.read("events", changedId).data()).toMatchObject({
+      title: "訪問時間変更",
+      updatedAt: "2026-08-11T09:05:00.000Z",
+    });
+  });
+
   it("overlap epoch queryで範囲外の大量履歴や壊れた文書を読み込まず削除しない", async () => {
     const { db, store } = createStore();
     const range = { start: "2026-07-12T09:00:00.000Z", end: "2027-02-07T09:00:00.000Z", syncedAt: NOW };

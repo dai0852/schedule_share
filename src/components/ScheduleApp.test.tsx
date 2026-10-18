@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { format } from "date-fns";
 import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PublicSalesMember } from "@/domain/member";
+import { getMemberColorStyle } from "@/domain/memberColor";
 import { PUBLIC_EVENTS_RESPONSE_MAX_BYTES, type NormalizedEvent } from "@/domain/schedule";
 import { ScheduleApp } from "./ScheduleApp";
 
@@ -139,6 +140,32 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function openDetails(label: string) {
+  const summary = [...document.querySelectorAll("details > summary")]
+    .find((item) => item.textContent?.includes(label));
+  expect(summary).toBeDefined();
+  const details = summary?.parentElement as HTMLDetailsElement;
+  if (!details.open) fireEvent.click(summary!);
+  expect(details.open).toBe(true);
+  return details;
+}
+
+function eventRequests(fetchMock: ReturnType<typeof vi.fn>) {
+  return fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events"));
+}
+
+function selectedDay(date: string, count: number) {
+  return screen.getByRole("button", { name: `${date}、予定${count}件` });
+}
+
+function expectEventVisible(title: string) {
+  expect(screen.getAllByText(title).length).toBeGreaterThan(0);
+}
+
+function expectEventAbsent(title: string) {
+  expect(screen.queryAllByText(title)).toHaveLength(0);
+}
+
 describe("ScheduleApp", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -190,9 +217,18 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("other-dept-token", "hr@studio-csa.com")));
 
-    expect(await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" })).toBeChecked();
+    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    const sections = [...document.querySelectorAll("details > summary")];
+    expect(sections).toHaveLength(2);
+    expect(sections[0]).toHaveTextContent("表示する担当者");
+    expect(sections[1]).toHaveTextContent("その他の操作");
+    expect((sections[0].parentElement as HTMLDetailsElement).open).toBe(false);
+    expect((sections[1].parentElement as HTMLDetailsElement).open).toBe(false);
+    expect(screen.queryByLabelText("予定元")).not.toBeInTheDocument();
+    openDetails("表示する担当者");
+    expect(screen.getByRole("checkbox", { name: "田中 花子 / 営業一課" })).toBeChecked();
     expect(screen.queryByRole("checkbox", { name: /デモ/ })).not.toBeInTheDocument();
-    expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
+    expectEventVisible("顧客訪問");
     const apiCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/"));
     expect(apiCalls).toHaveLength(3);
     for (const [, init] of apiCalls) {
@@ -209,7 +245,13 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
 
-    fireEvent.click(await screen.findByRole("button", { name: "顧客訪問の予定詳細を開く" }));
+    await screen.findAllByRole("button", { name: "顧客訪問の予定詳細を開く" });
+    const calendarCard = screen.getAllByRole("button", { name: "顧客訪問の予定詳細を開く" })[0];
+    expect(calendarCard).toHaveTextContent("田中 花子");
+    expect(calendarCard).toHaveTextContent("顧客訪問");
+    const color = getMemberColorStyle(memberId) as Record<string, string>;
+    expect(calendarCard.style.getPropertyValue("--member-color")).toBe(color["--member-color"]);
+    fireEvent.click(calendarCard);
 
     const dialog = screen.getByRole("dialog", { name: "予定の詳細" });
     expect(dialog).toHaveTextContent("顧客訪問");
@@ -232,7 +274,9 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("member-token", "member@studio-csa.com")));
 
-    expect(await screen.findByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
+    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    openDetails("その他の操作");
+    expect(screen.getByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
     expect(screen.queryByRole("link", { name: "管理者コンソール" })).not.toBeInTheDocument();
   });
 
@@ -251,7 +295,9 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("admin-token", "kurihara@studio-csa.com")));
 
-    expect(await screen.findByRole("link", { name: "管理者コンソール" })).toHaveAttribute("href", "/admin");
+    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    openDetails("その他の操作");
+    expect(screen.getByRole("link", { name: "管理者コンソール" })).toHaveAttribute("href", "/admin");
     expect(screen.getByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
   });
 
@@ -262,7 +308,8 @@ describe("ScheduleApp", () => {
 
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("admin-token", "kurihara@studio-csa.com")));
-    await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" });
+    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    openDetails("表示する担当者");
 
     expect(screen.queryByRole("link", { name: /Googleカレンダー/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "管理者コンソール" })).not.toBeInTheDocument();
@@ -278,12 +325,13 @@ describe("ScheduleApp", () => {
 
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
-    await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" });
+    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    openDetails("表示する担当者");
 
     expect(screen.queryByRole("link", { name: "Googleカレンダー接続" })).not.toBeInTheDocument();
   });
 
-  it("担当ビューで複数担当者を選択し、再取得せず表示対象を切り替える", async () => {
+  it("月表示で担当者を選択し、再取得せず全予定元の表示対象を切り替える", async () => {
     vi.useRealTimers();
     const auth = captureAuthState();
     const fetchMock = installApiFetch({
@@ -303,36 +351,106 @@ describe("ScheduleApp", () => {
     });
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("filter-token")));
-    const firstMemberCheckbox = await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" });
+    openDetails("表示する担当者");
+    const firstMemberCheckbox = screen.getByRole("checkbox", { name: "田中 花子 / 営業一課" });
     const secondMemberCheckbox = screen.getByRole("checkbox", { name: "佐藤 次郎 / 営業二課" });
-    expect(screen.getByRole("button", { name: "担当" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "月" })).toHaveAttribute("aria-pressed", "true");
     expect(firstMemberCheckbox).toBeChecked();
     expect(secondMemberCheckbox).toBeChecked();
-    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
-    expect(screen.getByText("提案準備")).toBeInTheDocument();
+    expectEventVisible("顧客訪問");
+    expectEventVisible("提案準備");
+    expectEventVisible("旧Teams会議");
 
-    const eventCallsBeforeSelection = fetchMock.mock.calls
-      .filter(([url]) => String(url).startsWith("/api/events")).length;
+    const eventCallsBeforeSelection = eventRequests(fetchMock).length;
     fireEvent.click(firstMemberCheckbox);
 
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
-    expect(screen.getByText("提案準備")).toBeInTheDocument();
-    expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")))
-      .toHaveLength(eventCallsBeforeSelection);
+    expectEventAbsent("顧客訪問");
+    expectEventVisible("提案準備");
+    expect(eventRequests(fetchMock)).toHaveLength(eventCallsBeforeSelection);
 
     fireEvent.click(screen.getByRole("button", { name: "全員を選択" }));
     expect(firstMemberCheckbox).toBeChecked();
-    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
-    expect(screen.queryByRole("option", { name: "Teams" })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "microsoft" } });
-    await act(async () => {});
-    const lastEventCall = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1);
-    expect(String(lastEventCall?.[0])).toContain("source=microsoft");
+    expectEventVisible("顧客訪問");
+    expectEventVisible("提案準備");
+    expectEventVisible("旧Teams会議");
+    expect(eventRequests(fetchMock)).toHaveLength(eventCallsBeforeSelection);
+    const lastEventCall = eventRequests(fetchMock).at(-1);
+    expect(String(lastEventCall?.[0])).not.toContain("source=");
     expect(String(lastEventCall?.[0])).not.toContain("ownerUserId");
     expect(lastEventCall?.[1]).toMatchObject({ headers: { authorization: "Bearer filter-token" } });
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
-    expect(screen.getByText("提案準備")).toBeInTheDocument();
-    expect(screen.getByText("旧Teams会議")).toBeInTheDocument();
+  });
+
+  it("同じ月の日付選択は再取得せず、選択日の一覧には同名予定もすべて残す", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    const sameTitleEvents = Array.from({ length: 4 }, (_, index): NormalizedEvent => ({
+      ...event,
+      eventId: `google:${memberId}:same-${index}`,
+      sourceEventId: `same-${index}`,
+      title: "同名の予定",
+      start: `${visibleDate}T${String(index + 9).padStart(2, "0")}:00:00+09:00`,
+      end: `${visibleDate}T${String(index + 10).padStart(2, "0")}:00:00+09:00`,
+    }));
+    const fetchMock = installApiFetch({ events: { events: sameTitleEvents } });
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    const dayLabel = format(new Date(`${visibleDate}T12:00:00+09:00`), "yyyy年M月d日");
+    expect(selectedDay(dayLabel, 4)).toHaveAttribute("aria-pressed", "true");
+    const agenda = screen.getByRole("region", { name: "選択日の予定" });
+    expect(within(agenda).getAllByText("同名の予定")).toHaveLength(4);
+    const callsBefore = eventRequests(fetchMock).length;
+    const otherDay = new Date(`${visibleDate}T12:00:00+09:00`);
+    otherDay.setDate(otherDay.getDate() === 1 ? 2 : 1);
+    fireEvent.click(selectedDay(format(otherDay, "yyyy年M月d日"), 0));
+    expect(selectedDay(format(otherDay, "yyyy年M月d日"), 0)).toHaveAttribute("aria-pressed", "true");
+    expect(within(agenda).queryByText("同名の予定")).not.toBeInTheDocument();
+    expect(within(agenda).getByText("この日の予定はありません。")).toBeInTheDocument();
+    fireEvent.click(selectedDay(dayLabel, 4));
+    expect(within(agenda).getAllByText("同名の予定")).toHaveLength(4);
+    expect(eventRequests(fetchMock)).toHaveLength(callsBefore);
+  });
+
+  it("月外の日付を選ぶと表示月が移り、その日が選択される", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    const fetchMock = installApiFetch();
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    const today = new Date();
+    const previous = new Date(today.getFullYear(), today.getMonth(), 0);
+    const following = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const outside = screen.queryByRole("button", { name: `${format(previous, "yyyy年M月d日")}、予定0件` })
+      ? previous : following;
+    const label = format(outside, "yyyy年M月d日");
+    fireEvent.click(selectedDay(label, 0));
+    expect(selectedDay(label, 0)).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(eventRequests(fetchMock)).toHaveLength(2));
+  });
+
+  it("スマホ幅へ変わると担当表示を月へ戻し、表示切替を隠す", async () => {
+    vi.useRealTimers();
+    let isNarrow = false;
+    let onChange: ((event: MediaQueryListEvent) => void) | undefined;
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      get matches() { return isNarrow; },
+      media: "(max-width: 760px)",
+      addEventListener: (_name: string, listener: (event: MediaQueryListEvent) => void) => { onChange = listener; },
+      removeEventListener: vi.fn(),
+    })));
+    const auth = captureAuthState();
+    installApiFetch();
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    fireEvent.click(screen.getByRole("button", { name: "担当" }));
+    expect(screen.getByRole("button", { name: "担当" })).toHaveAttribute("aria-pressed", "true");
+    isNarrow = true;
+    await act(async () => onChange?.({ matches: true } as MediaQueryListEvent));
+    expect(screen.queryByRole("button", { name: "担当" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "月" })).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "選択日の予定" })).toBeInTheDocument();
   });
 
   it("明示デモモードは担当者・接続APIを呼ばず、デモ認証で予定だけを再取得する", async () => {
@@ -346,40 +464,47 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp allowDemoAuth />);
     await act(async () => {});
 
-    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
+    expectEventVisible("顧客訪問");
+    openDetails("表示する担当者");
     const demoMemberCheckbox = screen.getByRole("checkbox", { name: "田中 花子" });
     expect(demoMemberCheckbox).toBeChecked();
     const eventCallsBeforeSelection = fetchMock.mock.calls
       .filter(([url]) => String(url).startsWith("/api/events")).length;
     fireEvent.click(demoMemberCheckbox);
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expectEventAbsent("顧客訪問");
     expect(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")))
       .toHaveLength(eventCallsBeforeSelection);
     fireEvent.click(screen.getByRole("button", { name: "全員を選択" }));
-    expect(screen.getByText("顧客訪問")).toBeInTheDocument();
+    expectEventVisible("顧客訪問");
     expect(screen.queryByRole("link", { name: "Googleカレンダー接続" })).not.toBeInTheDocument();
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/members")).toHaveLength(0);
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/me/calendar-connection")).toHaveLength(0);
 
     let lastEventUrl = String(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1)?.[0]);
-    expect(lastEventUrl).toContain("start=2026-06-14T15%3A00%3A00.000Z");
-    expect(lastEventUrl).toContain("end=2026-06-21T15%3A00%3A00.000Z");
-
-    fireEvent.click(screen.getByRole("button", { name: "月" }));
-    await act(async () => {});
-    lastEventUrl = String(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1)?.[0]);
     expect(lastEventUrl).toContain("start=2026-05-31T15%3A00%3A00.000Z");
+    expect(selectedDay("2026年6月19日", 1)).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(screen.getByRole("button", { name: "次の期間" }));
     await act(async () => {});
     lastEventUrl = String(fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events")).at(-1)?.[0]);
     expect(lastEventUrl).toContain("start=2026-06-28T15%3A00%3A00.000Z");
     expect(lastEventUrl).toContain("end=2026-08-02T15%3A00%3A00.000Z");
+    expect(selectedDay("2026年7月1日", 0)).toHaveAttribute("aria-pressed", "true");
     const eventCalls = fetchMock.mock.calls.filter(([url]) => String(url).startsWith("/api/events"));
-    expect(eventCalls).toHaveLength(3);
+    expect(eventCalls).toHaveLength(2);
     for (const [, init] of eventCalls) {
       expect(init).toMatchObject({ headers: { "x-demo-email": "admin@example.co.jp" } });
     }
+
+    fireEvent.click(screen.getByRole("button", { name: "前の期間" }));
+    await act(async () => {});
+    expect(selectedDay("2026年6月19日", 1)).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "次の期間" }));
+    await act(async () => {});
+    fireEvent.click(screen.getByRole("button", { name: "今日" }));
+    await act(async () => {});
+    expect(selectedDay("2026年6月19日", 1)).toHaveAttribute("aria-pressed", "true");
+    expect(eventRequests(fetchMock)).toHaveLength(5);
   });
 
   it("担当者API失敗時は固定文言だけを表示し、予定取得は継続する", async () => {
@@ -393,8 +518,8 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
 
-    expect(await screen.findByText("担当者一覧を取得できませんでした。")).toBeInTheDocument();
-    expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
+    expect((await screen.findAllByText("担当者一覧を取得できませんでした。")).length).toBeGreaterThan(0);
+    await screen.findAllByText("顧客訪問");
     expect(document.body).not.toHaveTextContent("raw-member-token");
     expect(document.body).not.toHaveTextContent("secret.example");
   });
@@ -421,7 +546,7 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
 
-    expect(await screen.findByText("担当者一覧を取得できませんでした。")).toBeInTheDocument();
+    expect((await screen.findAllByText("担当者一覧を取得できませんでした。")).length).toBeGreaterThan(0);
     expect(screen.queryByRole("checkbox", { name: "田中 花子 / 営業一課" })).not.toBeInTheDocument();
   });
 
@@ -436,7 +561,7 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(signedInUser()));
 
     expect(await screen.findByText("予定の取得に失敗しました。時間をおいて再度お試しください。")).toBeInTheDocument();
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expectEventAbsent("顧客訪問");
   });
 
   it("Content-Lengthなしのchunked multibyte responseも公開予定byte契約で打ち切る", async () => {
@@ -472,7 +597,140 @@ describe("ScheduleApp", () => {
     expect(chunkCount).toBeLessThanOrEqual(9);
   });
 
-  it("予定元filter変更で新requestがpending・errorでも旧filterの予定を即時に隠す", async () => {
+  it("月取得500なら週別に再取得し、各週1000件以内の合計1001件を表示する", async () => {
+    const auth = captureAuthState();
+    const weeklyRanges: Array<{ start: Date; end: Date; count: number }> = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/members") return Promise.resolve(jsonResponse({ members: [member] }));
+      if (url === "/api/me/calendar-connection") return Promise.resolve(jsonResponse({ registered: false }));
+      if (!url.startsWith("/api/events")) throw new Error(`unexpected request: ${url}`);
+      const params = new URL(url, "http://localhost").searchParams;
+      const start = new Date(params.get("start")!);
+      const end = new Date(params.get("end")!);
+      if (end.getTime() - start.getTime() > 7 * 24 * 60 * 60 * 1000) {
+        return Promise.resolve(jsonResponse({ error: "too many events" }, 500));
+      }
+      const week = weeklyRanges.length;
+      const count = week === 0 ? 201 : 200;
+      weeklyRanges.push({ start, end, count });
+      const day = format(start, "yyyy-MM-dd");
+      const events = Array.from({ length: count }, (_, index): NormalizedEvent => ({
+        ...event,
+        eventId: `google:${memberId}:week-${week}-${index}`,
+        sourceEventId: `week-${week}-${index}`,
+        title: `週${week}予定${index}`,
+        start: `${day}T09:00:00+09:00`,
+        end: `${day}T10:00:00+09:00`,
+      }));
+      return Promise.resolve(jsonResponse({ events }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    expect(screen.getByText("1001件", { selector: ".countBadge" })).toBeInTheDocument();
+    expect(weeklyRanges).toHaveLength(5);
+    expect(weeklyRanges.every(({ count }) => count <= 1000)).toBe(true);
+    for (const { start, end } of weeklyRanges) {
+      expect(end.getTime() - start.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+    }
+    expect(eventRequests(fetchMock)).toHaveLength(6);
+    const monthParams = new URL(String(eventRequests(fetchMock)[0][0]), "http://localhost").searchParams;
+    expect(weeklyRanges[0].start.toISOString()).toBe(monthParams.get("start"));
+    expect(weeklyRanges.at(-1)?.end.toISOString()).toBe(monthParams.get("end"));
+    for (let index = 1; index < weeklyRanges.length; index += 1) {
+      expect(weeklyRanges[index].start.toISOString()).toBe(weeklyRanges[index - 1].end.toISOString());
+    }
+  });
+
+  it("週境界の同一eventIdだけを統合し、予定元が違う同名予定は残す", async () => {
+    const auth = captureAuthState();
+    const sharedGoogle: NormalizedEvent = {
+      ...event,
+      title: "同名の商談",
+      start: "2026-06-07T23:00:00+09:00",
+      end: "2026-06-08T01:00:00+09:00",
+    };
+    const sharedMicrosoft: NormalizedEvent = {
+      ...sharedGoogle,
+      eventId: `microsoft:${memberId}:m-1`,
+      source: "microsoft",
+      sourceEventId: "m-1",
+      calendarId: "outlook",
+    };
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/members") return Promise.resolve(jsonResponse({ members: [member] }));
+      if (url === "/api/me/calendar-connection") return Promise.resolve(jsonResponse({ registered: false }));
+      if (!url.startsWith("/api/events")) throw new Error(`unexpected request: ${url}`);
+      const params = new URL(url, "http://localhost").searchParams;
+      const start = new Date(params.get("start")!);
+      const end = new Date(params.get("end")!);
+      if (end.getTime() - start.getTime() > 7 * 24 * 60 * 60 * 1000) {
+        return Promise.resolve(jsonResponse({ error: "too many events" }, 500));
+      }
+      const weekStart = format(start, "yyyy-MM-dd");
+      return Promise.resolve(jsonResponse({ events: weekStart === "2026-06-01" || weekStart === "2026-06-08"
+        ? [sharedGoogle, sharedMicrosoft] : [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    expect(screen.getByText("2件", { selector: ".countBadge" })).toBeInTheDocument();
+    fireEvent.click(selectedDay("2026年6月7日", 2));
+    const agenda = screen.getByRole("region", { name: "選択日の予定" });
+    expect(within(agenda).getAllByText("同名の商談")).toHaveLength(2);
+  });
+
+  it.each([
+    [500, { error: "week failed" }],
+    [401, { error: "unauthorized" }],
+    [403, { error: "forbidden" }],
+    [200, { events: [{ ...event, attendees: [] }] }],
+  ])("週取得の失敗・不正応答(status %i)では成功週を部分表示しない", async (failureStatus, failureBody) => {
+    const auth = captureAuthState();
+    const failedWeek = deferred<Response>();
+    const partialEvent: NormalizedEvent = {
+      ...event,
+      eventId: `google:${memberId}:partial`,
+      sourceEventId: "partial",
+      title: "部分表示してはいけない予定",
+      start: "2026-06-01T09:00:00+09:00",
+      end: "2026-06-01T10:00:00+09:00",
+    };
+    let weeklyCalls = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/members") return Promise.resolve(jsonResponse({ members: [member] }));
+      if (url === "/api/me/calendar-connection") return Promise.resolve(jsonResponse({ registered: false }));
+      if (!url.startsWith("/api/events")) throw new Error(`unexpected request: ${url}`);
+      const params = new URL(url, "http://localhost").searchParams;
+      const start = new Date(params.get("start")!);
+      const end = new Date(params.get("end")!);
+      if (end.getTime() - start.getTime() > 7 * 24 * 60 * 60 * 1000) {
+        return Promise.resolve(jsonResponse({ error: "too many events" }, 500));
+      }
+      weeklyCalls += 1;
+      if (weeklyCalls === 1) return Promise.resolve(jsonResponse({ events: [partialEvent] }));
+      if (weeklyCalls === 2) return failedWeek.promise;
+      return Promise.resolve(jsonResponse({ events: [] }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+    await act(async () => {});
+
+    expect(weeklyCalls).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("予定を読み込んでいます…")).toBeInTheDocument();
+    expectEventAbsent("部分表示してはいけない予定");
+    await act(async () => failedWeek.resolve(jsonResponse(failureBody, failureStatus)));
+    expect(screen.getByText("予定の取得に失敗しました。時間をおいて再度お試しください。")).toBeInTheDocument();
+    expectEventAbsent("部分表示してはいけない予定");
+  });
+
+  it("月送りで新requestがpending・errorでも旧月の予定を即時に隠す", async () => {
     vi.useRealTimers();
     const auth = captureAuthState();
     const nextEvents = deferred<Response>();
@@ -492,21 +750,23 @@ describe("ScheduleApp", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
-    expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
+    await screen.findAllByText("顧客訪問");
 
-    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "google" } });
+    fireEvent.click(screen.getByRole("button", { name: "次の期間" }));
 
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expectEventAbsent("顧客訪問");
     expect(screen.getByText("予定を読み込んでいます…")).toBeInTheDocument();
-    await act(async () => nextEvents.resolve(jsonResponse({ error: "raw-old-filter" }, 500)));
+    await act(async () => nextEvents.resolve(jsonResponse({ error: "raw-next-month" }, 500)));
     expect(await screen.findByText("予定の取得に失敗しました。時間をおいて再度お試しください。")).toBeInTheDocument();
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expectEventAbsent("顧客訪問");
   });
 
-  it("view/sourceを連続変更してabortされた旧requestが完了しても旧予定を復元しない", async () => {
+  it("月を連続移動してabortされた旧requestが完了しても旧予定を復元しない", async () => {
     vi.useRealTimers();
     const auth = captureAuthState();
     const abortedEvents = deferred<Response>();
+    const nextMonth = new Date(`${visibleDate}T12:00:00+09:00`);
+    nextMonth.setMonth(nextMonth.getMonth() + 2, 1);
     const microsoftEvent = {
       ...event,
       eventId: `microsoft:${memberId}:m-1`,
@@ -514,6 +774,8 @@ describe("ScheduleApp", () => {
       sourceEventId: "m-1",
       calendarId: "outlook",
       title: "Microsoft予定",
+      start: `${format(nextMonth, "yyyy-MM-dd")}T09:30:00+09:00`,
+      end: `${format(nextMonth, "yyyy-MM-dd")}T10:30:00+09:00`,
     };
     let eventRequests = 0;
     const fetchMock = vi.fn((input: RequestInfo | URL) => {
@@ -524,24 +786,24 @@ describe("ScheduleApp", () => {
         eventRequests += 1;
         if (eventRequests === 1) return Promise.resolve(jsonResponse({ events: [event] }));
         if (eventRequests === 2) return abortedEvents.promise;
-      return Promise.resolve(jsonResponse({ events: [microsoftEvent] }));
+        return Promise.resolve(jsonResponse({ events: [microsoftEvent] }));
       }
       throw new Error(`unexpected request: ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
-    expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
+    await screen.findAllByText("顧客訪問");
 
-    fireEvent.click(screen.getByRole("button", { name: "月" }));
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "次の期間" }));
+    expectEventAbsent("顧客訪問");
     await waitFor(() => expect(eventRequests).toBe(2));
-    fireEvent.change(screen.getByLabelText("予定元"), { target: { value: "microsoft" } });
-    expect(await screen.findByText("Microsoft予定")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "次の期間" }));
+    await screen.findAllByText("Microsoft予定");
     await act(async () => abortedEvents.resolve(jsonResponse({ events: [event] })));
 
-    expect(screen.getByText("Microsoft予定")).toBeInTheDocument();
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expectEventVisible("Microsoft予定");
+    expectEventAbsent("顧客訪問");
   });
 
   it("URLを含む予定や未知fieldをstrictに拒否して画面へ出さない", async () => {
@@ -573,6 +835,7 @@ describe("ScheduleApp", () => {
     await act(async () => auth.emit(signedInUser("old-token", "old@studio-csa.com")));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/members", expect.anything()));
     await act(async () => auth.emit(signedInUser("new-token", "new@studio-csa.com")));
+    openDetails("表示する担当者");
     expect(await screen.findByRole("checkbox", { name: "佐藤 次郎 / 営業一課" })).toBeInTheDocument();
     await act(async () => oldMembers.resolve(jsonResponse({ members: [member] })));
 
@@ -618,6 +881,7 @@ describe("ScheduleApp", () => {
     const fetchMock = installApiFetch();
 
     render(<StrictMode><ScheduleApp /></StrictMode>);
+    openDetails("表示する担当者");
     expect(await screen.findByRole("checkbox", { name: "田中 花子 / 営業一課" })).toBeInTheDocument();
 
     expect(fetchMock.mock.calls.filter(([url]) => String(url) === "/api/members")).toHaveLength(1);
@@ -630,11 +894,11 @@ describe("ScheduleApp", () => {
     installApiFetch({ events: { events: [event] } });
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
-    expect(await screen.findByText("顧客訪問")).toBeInTheDocument();
+    await screen.findAllByText("顧客訪問");
 
     await act(async () => auth.emit(null));
     expect(screen.getByRole("button", { name: "Microsoft でサインイン" })).toBeInTheDocument();
-    expect(screen.queryByText("顧客訪問")).not.toBeInTheDocument();
+    expectEventAbsent("顧客訪問");
     expect(screen.queryByRole("checkbox", { name: "田中 花子 / 営業一課" })).not.toBeInTheDocument();
   });
 

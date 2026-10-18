@@ -569,7 +569,14 @@ export function createMemberStore(
         }))
         .filter(({ storedEvent }) => eventsOverlapRange(storedEvent, safeRange));
 
-      await commitFencedTransactions(firestore, safeGuard, safeMemberId, safeRevision, safeEvents.map((event) => ({
+      const existingByDocumentId = new Map(existingInRange.map(({ id, storedEvent }) => [id, storedEvent]));
+      const changedEvents = safeEvents.filter((event) => {
+        const documentId = validatedEventHash(hashEventId(event.eventId));
+        const existing = existingByDocumentId.get(documentId);
+        return existing === undefined || !sameStoredEventContent(existing, event);
+      });
+
+      await commitFencedTransactions(firestore, safeGuard, safeMemberId, safeRevision, changedEvents.map((event) => ({
         kind: "set" as const,
         reference: firestore.collection(EVENTS_COLLECTION).doc(validatedEventHash(hashEventId(event.eventId))),
         data: event,
@@ -1168,6 +1175,13 @@ function syncRange(value: unknown): EventSyncRange {
 function eventsOverlapRange(event: NormalizedEvent, range: EventSyncRange): boolean {
   return eventBoundaryToEpochMs(event.start) < Date.parse(range.end)
     && eventBoundaryToEpochMs(event.end) > Date.parse(range.start);
+}
+
+function sameStoredEventContent(left: StoredNormalizedEvent, right: StoredNormalizedEvent): boolean {
+  // Microsoft予定のupdatedAtは同期時刻なので、表示・索引内容が同じ場合は既存値を保持して再書き込みを避ける。
+  const keys = Object.keys(left) as Array<keyof StoredNormalizedEvent>;
+  return keys.length === Object.keys(right).length
+    && keys.every((key) => key === "updatedAt" || left[key] === right[key]);
 }
 
 function eventTimestamp(value: unknown): string {

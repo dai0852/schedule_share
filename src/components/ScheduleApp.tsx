@@ -1,21 +1,22 @@
 "use client";
 
-import { format } from "date-fns";
+import { addDays, format, isSameMonth, startOfMonth } from "date-fns";
 import { ja } from "date-fns/locale";
-import { CalendarDays, Filter, LogOut, RefreshCcw, ShieldCheck } from "lucide-react";
+import { CalendarDays, ChevronDown, Filter, LogOut, RefreshCcw, ShieldCheck } from "lucide-react";
 import { onAuthStateChanged, signInWithPopup, signOut, type User } from "firebase/auth";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppNavigation } from "@/components/AppNavigation";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
+import { DayAgenda } from "@/components/DayAgenda";
 import { EventDetailsDialog } from "@/components/EventDetailsDialog";
 import { LoginScreen } from "@/components/LoginScreen";
 import { MemberAvatar } from "@/components/MemberAvatar";
 import { MemberScheduleGrid } from "@/components/MemberScheduleGrid";
 import { MonthCalendar } from "@/components/MonthCalendar";
-import { TimeGridCalendar } from "@/components/TimeGridCalendar";
 import { useMemberPhotoUrls } from "@/components/useMemberPhotoUrls";
 import { getCalendarRange, getVisibleDays, moveSelectedDate, type ViewMode } from "@/domain/calendar";
+import { getMemberColorStyle } from "@/domain/memberColor";
 import type { PublicSalesMember } from "@/domain/member";
 import {
   PUBLIC_EVENTS_RESPONSE_MAX_BYTES,
@@ -40,8 +41,6 @@ interface ScheduleAppProps {
   allowDemoAuth?: boolean;
 }
 
-type DisplayCalendarSource = "all" | "google" | "microsoft";
-
 export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const firebaseReady = hasFirebaseClientConfig();
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
@@ -55,10 +54,11 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const [googleConnectionConfigured, setGoogleConnectionConfigured] = useState(false);
   const [canManageMembers, setCanManageMembers] = useState(false);
   const [events, setEvents] = useState<NormalizedEvent[]>([]);
-  const [mode, setMode] = useState<ViewMode>("members");
+  const [mode, setMode] = useState<ViewMode>("month");
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [displayedDate, setDisplayedDate] = useState(() => new Date());
+  const [isMobile, setIsMobile] = useState(false);
   const [deselectedOwnerIds, setDeselectedOwnerIds] = useState<string[]>([]);
-  const [selectedSource, setSelectedSource] = useState<DisplayCalendarSource>("all");
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +68,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const membersController = useRef<AbortController | null>(null);
   const connectionController = useRef<AbortController | null>(null);
   const eventsController = useRef<AbortController | null>(null);
-  const range = useMemo(() => getCalendarRange(mode, selectedDate), [mode, selectedDate]);
+  const range = useMemo(() => getCalendarRange(mode, displayedDate), [mode, displayedDate]);
   const visibleDays = useMemo(() => getVisibleDays(range), [range]);
   const isDemoMode = allowDemoAuth && !firebaseReady;
   const canLoad = !authInitializing
@@ -78,6 +78,18 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     firebaseUser,
     firebaseReady && firebaseUser !== null && !isDemoMode,
   );
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const media = window.matchMedia("(max-width: 760px)");
+    const update = () => {
+      setIsMobile(media.matches);
+      if (media.matches) setMode("month");
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     if (!firebaseReady) {
@@ -253,22 +265,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
 
     void (async () => {
       try {
-        const params = new URLSearchParams({
-          start: range.start.toISOString(),
-          end: range.end.toISOString(),
-        });
-        if (selectedSource !== "all") params.set("source", selectedSource);
         const headers = await authorizationHeaders(firebaseReady, allowDemoAuth, authenticatedUser);
         if (controller.signal.aborted || authGeneration.current !== generation) return;
-        const response = await fetch(`/api/events?${params.toString()}`, {
-          headers,
-          signal: controller.signal,
-        });
-        if (controller.signal.aborted || authGeneration.current !== generation) return;
-        if (!response.ok) throw new SafeApiError();
-        const nextEvents = parseEventsResponse(
-          await readLimitedJson(response, PUBLIC_EVENTS_RESPONSE_MAX_BYTES),
-        );
+        const nextEvents = await fetchPublicEvents(range, headers, controller.signal);
         if (controller.signal.aborted || authGeneration.current !== generation) return;
         setEvents(nextEvents);
       } catch {
@@ -287,7 +286,6 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     firebaseUser,
     range.start,
     range.end,
-    selectedSource,
     refreshGeneration,
   ]);
 
@@ -316,12 +314,11 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     }
   }
 
-  const title = getCalendarTitle(mode, selectedDate, range);
+  const title = getCalendarTitle(mode, displayedDate, range);
   const availableMembers = members.length > 0 ? members : membersFromEvents(events);
   const deselectedOwnerIdSet = new Set(deselectedOwnerIds);
   const visibleEvents = events.filter((event) => (
     !deselectedOwnerIdSet.has(event.ownerUserId)
-    && matchesDisplaySource(event.source, selectedSource)
   ));
   const visibleMembers = availableMembers.filter((member) => !deselectedOwnerIdSet.has(member.id));
 
@@ -363,139 +360,69 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
       </header>
 
       <section className="workspace">
-        <aside className="sidebar">
-          <div className="authPanel">
-            <ShieldCheck aria-hidden="true" size={20} />
-            <div>
-              <strong>{firebaseReady ? "Microsoft 365" : "デモモード"}</strong>
-              <span>{firebaseReady ? firebaseUser?.email : "ローカル確認用のデモ認証で表示中"}</span>
-            </div>
-          </div>
-
-          <fieldset className="memberFilter">
-            <legend>
-              <Filter aria-hidden="true" size={16} />
-              表示する担当者
-            </legend>
-            <div className="memberFilterSummary">
-              <span>{visibleMembers.length} / {availableMembers.length}人</span>
-              <span>
-                <button type="button" onClick={() => setDeselectedOwnerIds([])}>全員を選択</button>
-                <button
-                  type="button"
-                  onClick={() => setDeselectedOwnerIds(availableMembers.map((member) => member.id))}
-                >
-                  選択を解除
-                </button>
-              </span>
-            </div>
-            <div className="memberFilterList">
-              {availableMembers.map((member) => (
-                <label className="memberFilterOption" key={member.id}>
-                  <input
-                    type="checkbox"
-                    aria-label={member.department
-                      ? `${member.displayName} / ${member.department}`
-                      : member.displayName}
-                    checked={!deselectedOwnerIdSet.has(member.id)}
-                    onChange={() => setDeselectedOwnerIds((current) => current.includes(member.id)
-                      ? current.filter((id) => id !== member.id)
-                      : [...current, member.id])}
-                  />
-                  <MemberAvatar
-                    displayName={member.displayName}
-                    photoUrl={memberPhotoUrls[member.id]}
-                    small
-                  />
-                  <span>
-                    <strong>{member.displayName}</strong>
-                    <small>{member.department}</small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <label className="selectLabel">
-            <Filter aria-hidden="true" size={16} />
-            予定元
-            <select
-              value={selectedSource}
-              onChange={(changeEvent) => {
-                clearVisibleEvents();
-                setSelectedSource(changeEvent.target.value as DisplayCalendarSource);
-              }}
-            >
-              <option value="all">すべて</option>
-              <option value="google">Google</option>
-              <option value="microsoft">Microsoft</option>
-            </select>
-          </label>
-
-          {membersLoading ? <p className="loadingText">担当者一覧を読み込んでいます…</p> : null}
-          {membersError ? <p className="errorText">{membersError}</p> : null}
-
-          <button
-            className="primaryButton"
-            onClick={() => setRefreshGeneration((current) => current + 1)}
-            disabled={loading || authInitializing || (firebaseReady && !firebaseUser)}
-          >
-            <RefreshCcw aria-hidden="true" size={16} />
-            {loading ? "更新中" : "予定を更新"}
-          </button>
-
-          {firebaseReady && firebaseUser ? (
-            <>
-              <AppNavigation
-                showGoogleConnection={canManageGoogle}
-                googleConnectionConfigured={googleConnectionConfigured}
-                showAdminConsole={canManageMembers}
-              />
-              <button className="secondaryButton" onClick={handleSignOut}>
-                <LogOut aria-hidden="true" size={16} />
-                ログアウト
-              </button>
-            </>
-          ) : null}
-        </aside>
-
-        <section className="scheduleSurface" aria-live="polite" aria-busy={loading}>
+        <section className="scheduleSurface" aria-busy={loading}>
           <CalendarToolbar
             title={title}
             mode={mode}
+            showModeSwitch={!isMobile}
             eventCount={visibleEvents.length}
             onToday={() => {
-              clearVisibleEvents();
-              setSelectedDate(new Date());
+              const today = new Date();
+              setSelectedDate(today);
+              if (mode !== "month" || !isSameMonth(today, displayedDate)) {
+                clearVisibleEvents();
+                setDisplayedDate(today);
+              }
             }}
             onMove={(amount) => {
               clearVisibleEvents();
-              setSelectedDate((date) => moveSelectedDate(date, mode, amount));
+              const nextDate = moveSelectedDate(displayedDate, mode, amount);
+              const nextSelection = mode === "month"
+                ? (isSameMonth(nextDate, new Date()) ? new Date() : startOfMonth(nextDate))
+                : nextDate;
+              setDisplayedDate(nextSelection);
+              setSelectedDate(nextSelection);
             }}
             onModeChange={(nextMode) => {
+              if (nextMode === mode) return;
               clearVisibleEvents();
+              setDisplayedDate(selectedDate);
               setMode(nextMode);
             }}
           />
-          {error ? <p className="errorText">{error}</p> : null}
-          {loading ? <p className="loadingText">予定を読み込んでいます…</p> : null}
+          <div role="status">
+            {error ? <p className="errorText">{error}</p> : null}
+            {loading ? <p className="loadingText">予定を読み込んでいます…</p> : null}
+          </div>
           {mode === "members" ? (
-              <MemberScheduleGrid
-                days={visibleDays}
-                events={visibleEvents}
-                members={visibleMembers}
-                memberPhotoUrls={memberPhotoUrls}
-                onEventSelect={setSelectedEvent}
-              />
-          ) : mode === "month" ? (
-            <MonthCalendar
+            <MemberScheduleGrid
               days={visibleDays}
-              selectedDate={selectedDate}
               events={visibleEvents}
+              members={visibleMembers}
+              memberPhotoUrls={memberPhotoUrls}
               onEventSelect={setSelectedEvent}
             />
           ) : (
-            <TimeGridCalendar days={visibleDays} events={visibleEvents} onEventSelect={setSelectedEvent} />
+            <>
+              <MonthCalendar
+                days={visibleDays}
+                displayedDate={displayedDate}
+                selectedDate={selectedDate}
+                events={visibleEvents}
+                onDaySelect={(day) => {
+                  setSelectedDate(day);
+                  setSelectedEvent(null);
+                  if (!isSameMonth(day, displayedDate)) {
+                    clearVisibleEvents();
+                    setDisplayedDate(day);
+                  }
+                }}
+                onEventSelect={setSelectedEvent}
+              />
+              {!loading && !error ? (
+                <DayAgenda day={selectedDate} events={visibleEvents} onEventSelect={setSelectedEvent} />
+              ) : null}
+            </>
           )}
           {!loading && !error && visibleEvents.length === 0 ? (
             <p className="emptyText calendarEmpty">
@@ -505,6 +432,82 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
             </p>
           ) : null}
         </section>
+
+        <aside className="scheduleControls" aria-label="表示設定とその他の操作">
+          <details className="scheduleAccordion">
+            <summary>
+              <span><Filter aria-hidden="true" size={18} />表示する担当者</span>
+              <span className="accordionSummaryEnd">
+                <span className="memberSelectionCount">{visibleMembers.length} / {availableMembers.length}人</span>
+                <ChevronDown className="accordionChevron" aria-hidden="true" size={18} />
+              </span>
+            </summary>
+            <div className="accordionContent">
+              {membersLoading ? <p className="loadingText">担当者一覧を読み込んでいます…</p> : null}
+              <fieldset className="memberFilter">
+                <legend>表示する担当者を選択</legend>
+                <div className="memberFilterSummary">
+                  <span>
+                    <button type="button" onClick={() => setDeselectedOwnerIds([])}>全員を選択</button>
+                    <button type="button" onClick={() => setDeselectedOwnerIds(availableMembers.map((member) => member.id))}>
+                      選択を解除
+                    </button>
+                  </span>
+                </div>
+                <div className="memberFilterList">
+                  {availableMembers.map((member) => (
+                    <label className="memberFilterOption" key={member.id} style={getMemberColorStyle(member.id)}>
+                      <input
+                        type="checkbox"
+                        aria-label={member.department ? `${member.displayName} / ${member.department}` : member.displayName}
+                        checked={!deselectedOwnerIdSet.has(member.id)}
+                        onChange={() => setDeselectedOwnerIds((current) => current.includes(member.id)
+                          ? current.filter((id) => id !== member.id)
+                          : [...current, member.id])}
+                      />
+                      <MemberAvatar displayName={member.displayName} photoUrl={memberPhotoUrls[member.id]} small />
+                      <span><strong>{member.displayName}</strong><small>{member.department}</small></span>
+                      <span className="memberColorDot" aria-hidden="true" />
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          </details>
+          <details className="scheduleAccordion">
+            <summary>
+              <span>その他の操作</span>
+              <ChevronDown className="accordionChevron" aria-hidden="true" size={18} />
+            </summary>
+            <div className="accordionContent otherActions">
+              <div className="authPanel">
+                <ShieldCheck aria-hidden="true" size={20} />
+                <div>
+                  <strong>{firebaseReady ? "Microsoft 365" : "デモモード"}</strong>
+                  <span>{firebaseReady ? firebaseUser?.email : "ローカル確認用のデモ認証で表示中"}</span>
+                </div>
+              </div>
+              <button
+                className="primaryButton"
+                onClick={() => setRefreshGeneration((current) => current + 1)}
+                disabled={loading || authInitializing || (firebaseReady && !firebaseUser)}
+              >
+                <RefreshCcw aria-hidden="true" size={16} />{loading ? "更新中" : "予定を更新"}
+              </button>
+              {firebaseReady && firebaseUser ? (
+                <>
+                  <AppNavigation showGoogleConnection={canManageGoogle}
+                    googleConnectionConfigured={googleConnectionConfigured} showAdminConsole={canManageMembers} />
+                  <button className="secondaryButton" onClick={handleSignOut}>
+                    <LogOut aria-hidden="true" size={16} />ログアウト
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </details>
+          {membersError ? <p className="errorText" role="status">{membersError}</p> : null}
+          {authError ? <p className="errorText" role="status">{authError}</p> : null}
+        </aside>
       </section>
       <EventDetailsDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} />
     </main>
@@ -525,6 +528,39 @@ async function authorizationHeaders(
   if (!firebaseReady && allowDemoAuth) return { "x-demo-email": "admin@example.co.jp" };
   if (!user) throw new SafeApiError();
   return { authorization: `Bearer ${await user.getIdToken()}` };
+}
+
+async function fetchPublicEvents(
+  range: { start: Date; end: Date },
+  headers: HeadersInit,
+  signal: AbortSignal,
+): Promise<NormalizedEvent[]> {
+  const params = new URLSearchParams({ start: range.start.toISOString(), end: range.end.toISOString() });
+  const response = await fetch(`/api/events?${params.toString()}`, { headers, signal });
+  if (signal.aborted) throw new SafeApiError();
+  // A month can exceed the API's per-response limit. Retry bounded weekly ranges
+  // while preserving the API contract and each response's validation limits.
+  if (response.status === 500 && addDays(range.start, 7) < range.end) {
+    const weeks: Array<{ start: Date; end: Date }> = [];
+    for (let start = range.start; start < range.end; start = addDays(start, 7)) {
+      const next = addDays(start, 7);
+      weeks.push({ start, end: next < range.end ? next : range.end });
+    }
+    if (weeks.length > 6) throw new SafeApiError();
+    const results = await Promise.all(weeks.map((week) => fetchPublicEvents(week, headers, signal)));
+    if (signal.aborted) throw new SafeApiError();
+    // Only the same event returned on both sides of a weekly boundary is merged.
+    const events = new Map<string, NormalizedEvent>();
+    for (const batch of results) {
+      for (const event of batch) {
+        const previous = events.get(event.eventId);
+        if (!previous || Date.parse(event.updatedAt) > Date.parse(previous.updatedAt)) events.set(event.eventId, event);
+      }
+    }
+    return [...events.values()];
+  }
+  if (!response.ok) throw new SafeApiError();
+  return parseEventsResponse(await readLimitedJson(response, PUBLIC_EVENTS_RESPONSE_MAX_BYTES));
 }
 
 async function readLimitedJson(response: Response, maximumBytes: number): Promise<unknown> {
@@ -770,13 +806,4 @@ function membersFromEvents(events: NormalizedEvent[]): PublicSalesMember[] {
     }
   }
   return [...membersById.values()];
-}
-
-function matchesDisplaySource(
-  source: CalendarSource,
-  selectedSource: DisplayCalendarSource,
-): boolean {
-  if (selectedSource === "all") return true;
-  if (selectedSource === "google") return source === "google";
-  return source === "microsoft" || source === "teams";
 }

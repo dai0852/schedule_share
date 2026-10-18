@@ -45,14 +45,16 @@ describe("calendar source labels", () => {
     expect(screen.getAllByLabelText("予定元: Microsoft")).toHaveLength(2);
   });
 
-  it("月表示でも各予定元を色だけでなく可視テキストとaria-labelで示す", () => {
+  it("月表示では予定元に関係なく担当者名と同じ色で表示する", () => {
     render(<MonthCalendar days={[day]} selectedDate={day} events={events} />);
 
-    expect(screen.getByText("Google")).toBeVisible();
-    expect(screen.getAllByText("Microsoft")).toHaveLength(2);
-    expect(screen.queryByText("Teams")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("予定元: Google")).toBeInTheDocument();
-    expect(screen.getAllByLabelText("予定元: Microsoft")).toHaveLength(2);
+    const cards = screen.getAllByRole("button", { name: /の予定詳細を開く/ });
+    expect(cards).toHaveLength(3);
+    expect(cards.map((card) => card.getAttribute("style")))
+      .toEqual([cards[0].getAttribute("style"), cards[0].getAttribute("style"), cards[0].getAttribute("style")]);
+    expect(screen.getAllByText("佐藤", { exact: false })).toHaveLength(3);
+    expect(screen.queryByLabelText(/予定元:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^(Google|Microsoft|Teams)$/)).not.toBeInTheDocument();
   });
 });
 
@@ -106,9 +108,9 @@ describe("member schedule grid", () => {
     expect(table).toHaveAttribute("aria-rowcount", "3");
     expect(table).toHaveAttribute("aria-colcount", "3");
     expect(screen.getByRole("cell", { name: "佐藤 8月11日" }))
-      .toHaveTextContent("09:00–10:00Googlegoogle予定");
+      .toHaveTextContent("09:00–10:00佐藤google予定");
     expect(screen.getByRole("cell", { name: "田中 8月12日" }))
-      .toHaveTextContent("終日Google終日研修");
+      .toHaveTextContent("終日田中終日研修");
     expect(screen.getByRole("cell", { name: "佐藤 8月12日" })).toBeEmptyDOMElement();
   });
 
@@ -199,7 +201,7 @@ describe("member schedule grid", () => {
 
     const overlapGroup = screen.getByRole("group", { name: "09:00から重なる予定 3件" });
     expect([...overlapGroup.querySelectorAll("button")].map((button) => button.textContent))
-      .toEqual(["09:00–10:00Google最初の予定", "09:30–11:00Microsoft長時間の予定", "10:00–10:30Google最後の予定"]);
+      .toEqual(["09:00–10:00佐藤最初の予定", "09:30–11:00佐藤長時間の予定", "10:00–10:30佐藤最後の予定"]);
   });
 
   it("終了時刻と開始時刻が同じ連続予定は別の縦グループにする", () => {
@@ -226,5 +228,34 @@ describe("member schedule grid", () => {
       .toHaveStyle("--member-overlap-columns: 1");
     expect(screen.getByRole("group", { name: "10:00の予定 1件" }))
       .toHaveStyle("--member-overlap-columns: 1");
+  });
+});
+
+
+describe("月の日付選択", () => {
+  it("日またぎの月カードは当日の開始時刻と継続方向を示す", () => {
+    const crossDay = {
+      ...sourceEvent("microsoft", 0),
+      start: "2026-08-10T23:00:00+09:00",
+      end: "2026-08-12T01:00:00+09:00",
+    };
+    render(<MonthCalendar days={[day]} selectedDate={day} events={[crossDay]} />);
+    const card = screen.getByRole("button", { name: "microsoft予定の予定詳細を開く" });
+    expect(card).toHaveTextContent("00:00 前日から継続 翌日へ継続 佐藤");
+    expect(card).not.toHaveTextContent("23:00");
+  });
+
+  it("日付とほか件数から選択日を通知し、各日に最大3件表示する", () => {
+    const onDaySelect = vi.fn();
+    const fourEvents = [...events, { ...sourceEvent("google", 3), title: "4件目" }];
+    render(<MonthCalendar days={[day]} selectedDate={day} events={fourEvents} onDaySelect={onDaySelect} />);
+    const dayButton = screen.getByRole("button", { name: "2026年8月11日、予定4件" });
+    expect(dayButton).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(dayButton);
+    expect(onDaySelect).toHaveBeenLastCalledWith(day);
+    expect(screen.getAllByRole("button", { name: /の予定詳細を開く/ })).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "8月11日の予定をすべて表示" }));
+    expect(onDaySelect).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("4件目")).not.toBeInTheDocument();
   });
 });

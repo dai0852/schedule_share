@@ -8,9 +8,10 @@ interface CalendarToolbarProps {
   onToday: () => void;
   onMove: (amount: -1 | 1) => void;
   onModeChange: (mode: ViewMode) => void;
+  showModeSwitch?: boolean;
 }
 
-const VISIBLE_MODES = ["members", "month"] as const;
+const VISIBLE_MODES = ["month", "members"] as const;
 
 const MODE_LABELS: Record<(typeof VISIBLE_MODES)[number], string> = {
   members: "担当",
@@ -24,6 +25,7 @@ export function CalendarToolbar({
   onToday,
   onMove,
   onModeChange,
+  showModeSwitch = true,
 }: CalendarToolbarProps) {
   return (
     <div className="calendarToolbar">
@@ -41,7 +43,7 @@ export function CalendarToolbar({
       </div>
 
       <div className="calendarToolbarActions">
-        <div className="controlGroup calendarMode" aria-label="表示切替">
+        {showModeSwitch ? <div className="controlGroup calendarMode" aria-label="表示切替">
           {VISIBLE_MODES.map((viewMode) => (
             <button
               key={viewMode}
@@ -52,7 +54,7 @@ export function CalendarToolbar({
               {MODE_LABELS[viewMode]}
             </button>
           ))}
-        </div>
+        </div> : null}
         <div className="countBadge">
           <Calendar aria-hidden="true" size={16} />
           {eventCount}件
