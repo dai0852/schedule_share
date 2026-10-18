@@ -78,6 +78,16 @@ describe("予定カードの詳細表示", () => {
 });
 
 describe("member schedule grid", () => {
+  it("担当表示の日付見出しから日別スケジュールを開ける", () => {
+    const onDaySelect = vi.fn();
+    render(<MemberScheduleGrid days={[day]} events={events}
+      members={[{ id: "member-1", displayName: "佐藤", department: "営業" }]} onDaySelect={onDaySelect} />);
+    const dateButton = screen.getByRole("button", { name: "2026年8月11日のスケジュールを開く" });
+    expect(dateButton).toHaveAttribute("aria-haspopup", "dialog");
+    fireEvent.click(dateButton);
+    expect(onDaySelect).toHaveBeenCalledWith(day);
+  });
+
   it("担当者が12人いても全員を異なる色で表示する", () => {
     const members = Array.from({ length: 12 }, (_, index) => ({
       id: `member-${index}`, displayName: `担当者${index}`, department: "営業",

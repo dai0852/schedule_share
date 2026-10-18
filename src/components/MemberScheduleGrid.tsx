@@ -15,6 +15,7 @@ export function MemberScheduleGrid({
   memberPhotoUrls = {},
   memberColors,
   onEventSelect,
+  onDaySelect,
 }: {
   days: Date[];
   events: NormalizedEvent[];
@@ -22,6 +23,7 @@ export function MemberScheduleGrid({
   memberPhotoUrls?: Record<string, string>;
   memberColors?: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
+  onDaySelect?: (day: Date) => void;
 }) {
   const gridStyle = { "--calendar-columns": days.length } as CSSProperties;
   const colors = memberColors ?? createMemberColorMap(members.map((member) => member.id));
@@ -49,8 +51,15 @@ export function MemberScheduleGrid({
               key={toDayKey(day)}
               role="columnheader"
             >
-              <span>{format(day, "E", { locale: ja })}</span>
-              <strong>{format(day, "d")}</strong>
+              {onDaySelect ? (
+                <button className="memberScheduleDaySelect" type="button" aria-haspopup="dialog"
+                  aria-label={`${format(day, "yyyy年M月d日")}のスケジュールを開く`} onClick={() => onDaySelect(day)}>
+                  <span>{format(day, "E", { locale: ja })}</span>
+                  <strong>{format(day, "d")}</strong>
+                </button>
+              ) : (
+                <><span>{format(day, "E", { locale: ja })}</span><strong>{format(day, "d")}</strong></>
+              )}
             </div>
           ))}
         </div>

@@ -88,10 +88,6 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   useEffect(() => { setColorRegistry(memberColors); }, [memberColors]);
 
   useEffect(() => {
-    if (!isMobile) setPreviewDate(null);
-  }, [isMobile]);
-
-  useEffect(() => {
     if (!window.matchMedia) return;
     const media = window.matchMedia("(max-width: 760px)");
     const update = () => {
@@ -423,6 +419,11 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
               memberPhotoUrls={memberPhotoUrls}
               memberColors={memberColors}
               onEventSelect={setSelectedEvent}
+              onDaySelect={(day) => {
+                setSelectedDate(day);
+                setSelectedEvent(null);
+                setPreviewDate(day);
+              }}
             />
           ) : (
             <>
@@ -433,6 +434,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                 events={visibleEvents}
                 memberColors={memberColors}
                 enableDayPreview={isMobile}
+                dayClickOpensDialog={!isMobile}
                 onDayPreview={setPreviewDate}
                 onDaySelect={(day) => {
                   setSelectedDate(day);
@@ -441,10 +443,13 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                     clearVisibleEvents();
                     setDisplayedDate(day);
                   }
+                  if (!isMobile) setPreviewDate(day);
                 }}
                 onEventSelect={setSelectedEvent}
               />
-              {isMobile ? <p className="calendarPreviewHint">日付を長押しすると、その日の予定を確認できます。</p> : null}
+              <p className="calendarPreviewHint">{isMobile
+                ? "日付を長押しすると、その日の予定を確認できます。"
+                : "日付をクリックすると、担当者別の時間割を確認できます。"}</p>
               {!loading && !error ? (
                 <DayAgenda key={selectedDate.toDateString()} day={selectedDate} events={visibleEvents}
                   members={availableMembers} memberColors={memberColors} onEventSelect={setSelectedEvent} />
@@ -536,8 +541,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           {authError ? <p className="errorText" role="status">{authError}</p> : null}
         </aside>
       </section>
-      {isMobile && previewDate && !loading && !error ? (
-        <DayScheduleDialog day={previewDate} events={visibleEvents} members={availableMembers} memberColors={memberColors}
+      {previewDate && !loading && !error ? (
+        <DayScheduleDialog day={previewDate} events={visibleEvents} members={visibleMembers} memberColors={memberColors}
+          memberPhotoUrls={memberPhotoUrls} layout={isMobile ? "agenda" : "timeline"}
           onClose={() => setPreviewDate(null)}
           onEventSelect={(event) => { setPreviewDate(null); setSelectedEvent(event); }} />
       ) : null}
@@ -546,6 +552,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   );
 
   function clearVisibleEvents() {
+    setLoading(true);
     setEvents([]);
     setSelectedEvent(null);
     setPreviewDate(null);

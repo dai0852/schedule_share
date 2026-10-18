@@ -175,8 +175,23 @@ function expectEventAbsent(title: string) {
   expect(screen.queryAllByText(title)).toHaveLength(0);
 }
 
+const originalShowModal = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "showModal");
+const originalClose = Object.getOwnPropertyDescriptor(HTMLDialogElement.prototype, "close");
+
+function closeDayDialog() {
+  const dialog = screen.getByRole("dialog", { name: "日付の予定" });
+  const closeButton = within(dialog).getByRole("button", { name: "日付の予定を閉じる" });
+  fireEvent.pointerDown(closeButton);
+  fireEvent.click(closeButton);
+  expect(screen.queryByRole("dialog", { name: "日付の予定" })).not.toBeInTheDocument();
+}
+
 describe("ScheduleApp", () => {
   beforeEach(() => {
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", { configurable: true,
+      value(this: HTMLDialogElement) { this.setAttribute("open", ""); } });
+    Object.defineProperty(HTMLDialogElement.prototype, "close", { configurable: true,
+      value(this: HTMLDialogElement) { this.removeAttribute("open"); } });
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-19T12:00:00+09:00"));
     firebaseMocks.hasFirebaseClientConfig.mockReturnValue(true);
@@ -189,6 +204,10 @@ describe("ScheduleApp", () => {
     cleanup();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    for (const [key, descriptor] of [["showModal", originalShowModal], ["close", originalClose]] as const) {
+      if (descriptor) Object.defineProperty(HTMLDialogElement.prototype, key, descriptor);
+      else Reflect.deleteProperty(HTMLDialogElement.prototype, key);
+    }
   });
 
   it("Firebase認証確定前はAPIを呼ばずログイン画面だけを表示する", async () => {
@@ -466,7 +485,9 @@ describe("ScheduleApp", () => {
     const otherDate = new Date(selectedDate);
     otherDate.setDate(otherDate.getDate() === 1 ? 2 : 1);
     fireEvent.click(selectedDay(format(otherDate, "yyyy年M月d日"), 0));
+    closeDayDialog();
     fireEvent.click(selectedDay(format(selectedDate, "yyyy年M月d日"), 13));
+    closeDayDialog();
     const afterDateChange = within(screen.getByRole("region", { name: "選択日の予定" }))
       .getByLabelText(`${mixedOwner.displayName}の予定2件`, { selector: "summary" });
     expect((afterDateChange.parentElement as HTMLDetailsElement).open).toBe(false);
@@ -560,15 +581,65 @@ describe("ScheduleApp", () => {
     const otherDay = new Date(`${visibleDate}T12:00:00+09:00`);
     otherDay.setDate(otherDay.getDate() === 1 ? 2 : 1);
     fireEvent.click(selectedDay(format(otherDay, "yyyy年M月d日"), 0));
+    closeDayDialog();
     expect(selectedDay(format(otherDay, "yyyy年M月d日"), 0)).toHaveAttribute("aria-pressed", "true");
     const emptyAgenda = screen.getByRole("region", { name: "選択日の予定" });
     expect(within(emptyAgenda).queryByText("同名の予定")).not.toBeInTheDocument();
     expect(within(emptyAgenda).getByText("この日の予定はありません。")).toBeInTheDocument();
     fireEvent.click(selectedDay(dayLabel, 4));
+    closeDayDialog();
     const restoredAgenda = screen.getByRole("region", { name: "選択日の予定" });
     openAgendaMember(restoredAgenda, "田中 花子", 4);
     expect(within(restoredAgenda).getAllByText("同名の予定")).toHaveLength(4);
     expect(eventRequests(fetchMock)).toHaveLength(callsBefore);
+  });
+
+  it("PCの日付クリックは選択担当者全員の時間割を開き、空日でも列を保つ", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    const thirdMember: PublicSalesMember = {
+      id: "123e4567-e89b-42d3-a456-426614174001",
+      displayName: "鈴木 三郎",
+      department: "営業三課",
+    };
+    const fetchMock = installApiFetch({
+      members: { members: [member, secondMember, thirdMember] },
+      events: { events: [event, secondEvent] },
+    });
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+    openDetails("表示する担当者");
+    fireEvent.click(screen.getByRole("checkbox", { name: "佐藤 次郎 / 営業二課" }));
+    const callsBeforeDaySelection = eventRequests(fetchMock).length;
+    const today = new Date(`${visibleDate}T12:00:00+09:00`);
+
+    fireEvent.click(selectedDay(format(today, "yyyy年M月d日"), 1));
+    const dialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(dialog).toHaveClass("desktopDayScheduleDialog");
+    expect(dialog).toHaveTextContent(format(today, "M月d日"));
+    const timeline = within(dialog).getByRole("region", { name: "担当者別の日別スケジュール" });
+    const scroller = within(timeline).getByRole("region", { name: "日別スケジュールのスクロール領域" });
+    const table = within(scroller).getByRole("table", { name: "担当者別の時間割" });
+    expect(within(table).getByLabelText("田中 花子の時間別予定")).toBeInTheDocument();
+    expect(within(table).getByLabelText("鈴木 三郎の時間別予定")).toBeInTheDocument();
+    expect(within(table).queryByLabelText("佐藤 次郎の時間別予定")).not.toBeInTheDocument();
+    expect(within(table).getByRole("button", { name: /09:30.*10:30.*顧客訪問/ })).toBeInTheDocument();
+    expect(within(table).queryByText("提案準備")).not.toBeInTheDocument();
+    expect(document.body.style.overflow).toBe("hidden");
+    closeDayDialog();
+    expect(document.body.style.overflow).toBe("");
+
+    const emptyDay = new Date(today);
+    emptyDay.setDate(emptyDay.getDate() === 1 ? 2 : 1);
+    fireEvent.click(selectedDay(format(emptyDay, "yyyy年M月d日"), 0));
+    const emptyDialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(emptyDialog).toHaveClass("desktopDayScheduleDialog");
+    const emptyTable = within(emptyDialog).getByRole("table", { name: "担当者別の時間割" });
+    expect(within(emptyTable).getByLabelText("田中 花子の時間別予定")).toBeInTheDocument();
+    expect(within(emptyTable).getByLabelText("鈴木 三郎の時間別予定")).toBeInTheDocument();
+    expect(within(emptyTable).queryByRole("button", { name: /顧客訪問/ })).not.toBeInTheDocument();
+    expect(eventRequests(fetchMock)).toHaveLength(callsBeforeDaySelection);
+    closeDayDialog();
   });
 
   it("月外の日付を選ぶと表示月が移り、その日が選択される", async () => {
@@ -587,6 +658,69 @@ describe("ScheduleApp", () => {
     fireEvent.click(selectedDay(label, 0));
     expect(selectedDay(label, 0)).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(eventRequests(fetchMock)).toHaveLength(2));
+    const dialog = await screen.findByRole("dialog", { name: "日付の予定" });
+    expect(dialog).toHaveClass("desktopDayScheduleDialog");
+    expect(dialog).toHaveTextContent(format(outside, "M月d日"));
+    expect(document.body.style.overflow).toBe("hidden");
+    closeDayDialog();
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("月外の日付は取得中に空ダイアログを開かず、成功後に一度だけ時間割を開く", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    const nextResponse = deferred<Response>();
+    let eventCallCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/members") return Promise.resolve(jsonResponse({ members: [member] }));
+      if (url === "/api/me/calendar-connection") return Promise.resolve(jsonResponse({ registered: false }));
+      if (url.startsWith("/api/events")) {
+        eventCallCount += 1;
+        return eventCallCount === 1
+          ? Promise.resolve(jsonResponse({ events: [event] }))
+          : nextResponse.promise;
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+    await screen.findAllByText("顧客訪問");
+
+    const today = new Date();
+    const previous = new Date(today.getFullYear(), today.getMonth(), 0);
+    const following = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const outside = screen.queryByRole("button", { name: `${format(previous, "yyyy年M月d日")}、予定0件` })
+      ? previous : following;
+    const date = format(outside, "yyyy-MM-dd");
+    const destinationEvent: NormalizedEvent = {
+      ...event,
+      eventId: `google:${memberId}:destination`,
+      sourceEventId: "destination",
+      title: "移動先の予定",
+      start: `${date}T09:30:00+09:00`,
+      end: `${date}T10:30:00+09:00`,
+    };
+    const showModal = vi.spyOn(HTMLDialogElement.prototype, "showModal");
+
+    fireEvent.click(selectedDay(format(outside, "yyyy年M月d日"), 0));
+    expect(screen.queryByRole("dialog", { name: "日付の予定" })).not.toBeInTheDocument();
+    expect(showModal).not.toHaveBeenCalled();
+    await waitFor(() => expect(eventRequests(fetchMock)).toHaveLength(2));
+    await act(async () => {});
+    expect(screen.queryByRole("dialog", { name: "日付の予定" })).not.toBeInTheDocument();
+    expect(showModal).not.toHaveBeenCalled();
+
+    await act(async () => nextResponse.resolve(jsonResponse({ events: [destinationEvent] })));
+    const dialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(showModal).toHaveBeenCalledTimes(1);
+    expect(dialog).toHaveClass("desktopDayScheduleDialog");
+    expect(dialog).toHaveTextContent(format(outside, "M月d日"));
+    const table = within(dialog).getByRole("table", { name: "担当者別の時間割" });
+    expect(within(table).getByRole("button", { name: /09:30.*10:30.*移動先の予定/ })).toBeInTheDocument();
+    closeDayDialog();
+    showModal.mockRestore();
   });
 
   it("スマホ幅へ変わると担当表示を月へ戻し、表示切替を隠す", async () => {
@@ -611,6 +745,38 @@ describe("ScheduleApp", () => {
     expect(screen.queryByRole("button", { name: "担当" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "月" })).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "選択日の予定" })).toBeInTheDocument();
+    fireEvent.click(selectedDay(format(new Date(), "yyyy年M月d日"), 0));
+    expect(screen.queryByRole("dialog", { name: "日付の予定" })).not.toBeInTheDocument();
+  });
+
+  it("日付ダイアログを開いたまま画面幅が変わると表示形式だけ切り替わる", async () => {
+    vi.useRealTimers();
+    let isNarrow = false;
+    let onChange: ((event: MediaQueryListEvent) => void) | undefined;
+    vi.stubGlobal("matchMedia", vi.fn(() => ({
+      get matches() { return isNarrow; },
+      media: "(max-width: 760px)",
+      addEventListener: (_name: string, listener: (event: MediaQueryListEvent) => void) => { onChange = listener; },
+      removeEventListener: vi.fn(),
+    })));
+    const auth = captureAuthState();
+    installApiFetch({ events: { events: [event] } });
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    fireEvent.click(selectedDay(format(new Date(), "yyyy年M月d日"), 1));
+    expect(screen.getByRole("dialog", { name: "日付の予定" })).toHaveClass("desktopDayScheduleDialog");
+    isNarrow = true;
+    await act(async () => onChange?.({ matches: true } as MediaQueryListEvent));
+    const mobileDialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(mobileDialog).not.toHaveClass("desktopDayScheduleDialog");
+    expect(within(mobileDialog).getByRole("region", { name: "選択日の予定" })).toBeInTheDocument();
+    isNarrow = false;
+    await act(async () => onChange?.({ matches: false } as MediaQueryListEvent));
+    const desktopDialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(desktopDialog).toHaveClass("desktopDayScheduleDialog");
+    expect(within(desktopDialog).getByRole("table", { name: "担当者別の時間割" })).toBeInTheDocument();
+    closeDayDialog();
   });
 
   it("明示デモモードは担当者・接続APIを呼ばず、デモ認証で予定だけを再取得する", async () => {
@@ -840,6 +1006,7 @@ describe("ScheduleApp", () => {
 
     expect(screen.getByText("2件", { selector: ".countBadge" })).toBeInTheDocument();
     fireEvent.click(selectedDay("2026年6月7日", 2));
+    closeDayDialog();
     const agenda = screen.getByRole("region", { name: "選択日の予定" });
     openAgendaMember(agenda, "田中 花子", 2);
     expect(within(agenda).getAllByText("同名の商談")).toHaveLength(2);

@@ -1767,6 +1767,90 @@ a:focus-visible {
 .dayScheduleDialogBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; touch-action: pan-y; }
 .dayScheduleDialogBody .dayAgenda { border: 0; margin: 0; padding: 0; }
 
+.desktopDayScheduleDialog { max-height: calc(100dvh - 48px); max-width: 1800px; width: calc(100% - 48px); }
+.desktopDayScheduleDialog .daySchedulePanel { max-height: calc(100dvh - 50px); }
+.desktopDayScheduleDialog .dayScheduleDialogBody { touch-action: auto; }
+.memberDayTimelineTitle { align-items: center; display: flex; gap: 16px; justify-content: space-between; margin-bottom: 14px; }
+.memberDayTimelineTitle h2 { font-size: 20px; margin: 0; }
+.memberDayTimelineTitle > span { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.memberDayTimelineScroller {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  isolation: isolate;
+  max-height: calc(100dvh - 220px);
+  min-height: 200px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  position: relative;
+}
+.memberDayTimelineScroller:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.memberDayTimelineGrid {
+  display: grid;
+  grid-template-columns: 64px repeat(var(--timeline-columns), minmax(210px, 1fr));
+  grid-template-rows: 72px minmax(44px, auto) var(--timeline-height);
+  min-width: calc(64px + var(--timeline-columns) * 210px);
+  position: relative;
+  width: 100%;
+}
+.memberDayTimelineRow { display: contents; }
+.memberDayCorner,
+.memberDayHeader,
+.memberDayAllDayCorner,
+.memberDayAllDay { background: #fff; border-bottom: 1px solid var(--grid); border-right: 1px solid var(--grid); position: sticky; }
+.memberDayCorner { align-items: center; display: flex; font-size: 12px; font-weight: 700; justify-content: center; left: 0; top: 0; z-index: 9; }
+.memberDayHeader { align-items: center; background: var(--member-bg); border-top: 4px solid var(--member-color); color: var(--member-text); display: flex; gap: 10px; min-width: 0; padding: 10px 12px; top: 0; z-index: 7; }
+.memberDayHeaderText { display: grid; gap: 2px; min-width: 0; }
+.memberDayHeaderText strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memberDayHeaderText > span,
+.memberDayHeaderText small { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memberDayAllDayCorner { align-items: center; color: var(--muted); display: flex; font-size: 11px; justify-content: center; left: 0; top: 72px; z-index: 8; }
+.memberDayAllDay { align-content: start; display: grid; gap: 4px; max-height: 120px; min-height: 44px; overflow-y: auto; padding: 6px; top: 72px; z-index: 6; }
+.memberDayAxis { background: #fff; border-right: 1px solid var(--grid); left: 0; position: sticky; z-index: 5; }
+.memberDayAxis > span { color: var(--muted); font-size: 11px; position: absolute; right: 8px; transform: translateY(-50%); white-space: nowrap; }
+.memberDayAxis > span:first-child { transform: none; }
+.memberDayAxis > span:last-child { transform: translateY(-100%); }
+.memberDayColumn {
+  background: repeating-linear-gradient(to bottom, #e5ebe8 0, #e5ebe8 1px, transparent 1px, transparent calc(var(--timeline-hour-height) / 2));
+  border-right: 1px solid var(--grid);
+  min-width: 0;
+  position: relative;
+}
+.memberDayEventSlot { padding: 2px; position: absolute; }
+.memberDayEvent,
+.memberDayAllDayEvent {
+  appearance: none;
+  background: var(--member-bg);
+  border: 0;
+  border-left: 4px solid var(--member-color);
+  border-radius: 7px;
+  color: var(--member-text);
+  display: block;
+  font: inherit;
+  min-width: 0;
+  overflow: hidden;
+  padding: 5px 7px;
+  text-align: left;
+  width: 100%;
+}
+.memberDayEvent { height: 100%; padding: 3px 5px; }
+.memberDayEvent > time,
+.memberDayEvent > strong,
+.memberDayEvent > span,
+.memberDayAllDayEvent > strong,
+.memberDayAllDayEvent > span { display: block; font-size: 11px; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.memberDayEvent > time { font-size: 10px; font-weight: 800; line-height: 12px; }
+.memberDayEvent > strong,
+.memberDayAllDayEvent > strong { font-size: 12px; margin-top: 2px; }
+.memberDayEvent > strong { font-size: 13px; line-height: 16px; }
+.memberDayEventShort > time { line-height: 10px; }
+.memberDayEventShort > strong { font-size: 11px; line-height: 12px; margin-top: 0; }
+.memberDayEventShort > span,
+.memberDayEventBrief > span { display: none; }
+.memberDayEvent > .memberDayLocation,
+.memberDayEvent > .memberDayContinuation { font-size: 10px; }
+.memberDayEmpty { color: var(--muted); font-size: 14px; padding: 16px 0; }
+.memberScheduleDaySelect { align-items: center; background: transparent; border: 0; border-radius: 10px; color: inherit; display: flex; gap: 7px; justify-content: center; min-height: 38px; padding: 0; width: 100%; }
+
 @media (max-width: 760px) {
   .topbar {
     gap: 10px;

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, type ReactNode } from "react";
 
 export function MonthDayButton({
   label, selected, today, children, onSelect, onPreview, enablePreview = false,
+  opensDialog = false,
 }: {
   label: string;
   selected: boolean;
@@ -10,6 +11,7 @@ export function MonthDayButton({
   onSelect: () => void;
   onPreview?: () => void;
   enablePreview?: boolean;
+  opensDialog?: boolean;
 }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const origin = useRef<{ x: number; y: number; pointerId: number } | null>(null);
@@ -28,7 +30,7 @@ export function MonthDayButton({
       aria-label={label}
       aria-pressed={selected}
       aria-current={today ? "date" : undefined}
-      aria-haspopup={enablePreview ? "dialog" : undefined}
+      aria-haspopup={enablePreview || opensDialog ? "dialog" : undefined}
       onPointerDown={(event) => {
         cancelPress();
         previewed.current = false;

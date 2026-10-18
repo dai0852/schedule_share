@@ -30,12 +30,18 @@ afterEach(() => {
   }
 });
 
-function Harness({ onSelect = vi.fn() }: { onSelect?: (event: NormalizedEvent) => void }) {
+function Harness({ onSelect = vi.fn(), layout = "agenda" }: {
+  onSelect?: (event: NormalizedEvent) => void;
+  layout?: "agenda" | "timeline";
+}) {
   const [open, setOpen] = useState(false);
   return <>
     <button onClick={() => setOpen(true)}>予定を開く</button>
     {open ? <DayScheduleDialog day={new Date("2026-08-11T00:00:00+09:00")} events={[event]}
-      members={[{ id: "member-1", displayName: "佐藤", department: "営業" }]} memberColors={createMemberColorMap(["member-1"])}
+      layout={layout}
+      members={[{ id: "member-1", displayName: "佐藤", department: "営業" },
+        { id: "member-2", displayName: "田中", department: "営業" }]}
+      memberColors={createMemberColorMap(["member-1", "member-2"])}
       onClose={() => setOpen(false)} onEventSelect={onSelect} /> : null}
   </>;
 }
@@ -80,5 +86,18 @@ describe("日付の予定ポップアップ", () => {
     fireEvent.click(screen.getByRole("dialog"));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe("");
+  });
+
+  it("timelineレイアウトは担当者全員の時間割と実時間の予定を表示する", () => {
+    render(<Harness layout="timeline" />);
+    fireEvent.click(screen.getByRole("button", { name: "予定を開く" }));
+    const dialog = screen.getByRole("dialog", { name: "日付の予定" });
+    expect(dialog).toHaveClass("desktopDayScheduleDialog");
+    const timeline = within(dialog).getByRole("region", { name: "担当者別の日別スケジュール" });
+    const scroller = within(timeline).getByRole("region", { name: "日別スケジュールのスクロール領域" });
+    const table = within(scroller).getByRole("table", { name: "担当者別の時間割" });
+    expect(within(table).getByLabelText("佐藤の時間別予定")).toBeInTheDocument();
+    expect(within(table).getByLabelText("田中の時間別予定")).toBeInTheDocument();
+    expect(within(table).getByRole("button", { name: /09:00.*10:00.*顧客訪問/ })).toBeInTheDocument();
   });
 });

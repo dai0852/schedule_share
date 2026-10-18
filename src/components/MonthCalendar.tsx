@@ -11,6 +11,7 @@ const MAX_VISIBLE_EVENTS = 3;
 export function MonthCalendar({
   days, displayedDate, selectedDate, events, onDaySelect, onEventSelect,
   memberColors, enableDayPreview = false, onDayPreview,
+  dayClickOpensDialog = false,
 }: {
   days: Date[];
   displayedDate?: Date;
@@ -21,6 +22,7 @@ export function MonthCalendar({
   memberColors?: MemberColorMap;
   enableDayPreview?: boolean;
   onDayPreview?: (day: Date) => void;
+  dayClickOpensDialog?: boolean;
 }) {
   const colors = memberColors ?? createMemberColorMap(events.map((event) => event.ownerUserId));
   return (
@@ -47,6 +49,7 @@ export function MonthCalendar({
                 onSelect={() => onDaySelect?.(day)}
                 onPreview={onDayPreview ? () => onDayPreview(day) : undefined}
                 enablePreview={enableDayPreview}
+                opensDialog={dayClickOpensDialog}
               >
                 <time dateTime={toDayKey(day)}>{format(day, "d")}</time>
                 {dayEvents.length > 0 ? (
@@ -76,6 +79,7 @@ export function MonthCalendar({
                 ))}
                 {dayEvents.length > MAX_VISIBLE_EVENTS ? (
                   <button className="moreEvents" type="button" onClick={() => onDaySelect?.(day)}
+                    aria-haspopup={dayClickOpensDialog ? "dialog" : undefined}
                     aria-label={`${format(day, "M月d日")}の予定をすべて表示`}>
                     ほか{dayEvents.length - MAX_VISIBLE_EVENTS}件
                   </button>

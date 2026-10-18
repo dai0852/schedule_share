@@ -2,15 +2,18 @@ import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { DayAgenda } from "@/components/DayAgenda";
+import { MemberDayTimeline } from "@/components/MemberDayTimeline";
 import type { PublicSalesMember } from "@/domain/member";
 import type { MemberColorMap } from "@/domain/memberColor";
 import type { NormalizedEvent } from "@/domain/schedule";
 
-export function DayScheduleDialog({ day, events, members, memberColors, onClose, onEventSelect }: {
+export function DayScheduleDialog({ day, events, members, memberColors, memberPhotoUrls, layout = "agenda", onClose, onEventSelect }: {
   day: Date;
   events: NormalizedEvent[];
   members: PublicSalesMember[];
   memberColors: MemberColorMap;
+  memberPhotoUrls?: Record<string, string>;
+  layout?: "agenda" | "timeline";
   onClose: () => void;
   onEventSelect: (event: NormalizedEvent) => void;
 }) {
@@ -36,7 +39,7 @@ export function DayScheduleDialog({ day, events, members, memberColors, onClose,
   return (
     <dialog
       aria-label="日付の予定"
-      className="dayScheduleDialog"
+      className={`dayScheduleDialog${layout === "timeline" ? " desktopDayScheduleDialog" : ""}`}
       ref={dialogRef}
       onPointerDownCapture={() => { pressedInDialog.current = true; }}
       onClickCapture={(event) => {
@@ -58,7 +61,12 @@ export function DayScheduleDialog({ day, events, members, memberColors, onClose,
           </button>
         </div>
         <div className="dayScheduleDialogBody">
-          <DayAgenda day={day} events={events} members={members} memberColors={memberColors} onEventSelect={onEventSelect} />
+          {layout === "timeline" ? (
+            <MemberDayTimeline day={day} events={events} members={members} memberColors={memberColors}
+              memberPhotoUrls={memberPhotoUrls} onEventSelect={onEventSelect} />
+          ) : (
+            <DayAgenda day={day} events={events} members={members} memberColors={memberColors} onEventSelect={onEventSelect} />
+          )}
         </div>
       </div>
     </dialog>
