@@ -78,6 +78,22 @@ describe("予定カードの詳細表示", () => {
 });
 
 describe("member schedule grid", () => {
+  it("担当者が12人いても全員を異なる色で表示する", () => {
+    const members = Array.from({ length: 12 }, (_, index) => ({
+      id: `member-${index}`, displayName: `担当者${index}`, department: "営業",
+    }));
+    const ownerEvents = members.map((member, index) => ({
+      ...sourceEvent("google", index),
+      eventId: `google:${member.id}:event-${index}`,
+      ownerUserId: member.id,
+      ownerName: member.displayName,
+    }));
+    render(<MemberScheduleGrid days={[day]} events={ownerEvents} members={members} />);
+    const cards = screen.getAllByRole("button", { name: /の予定詳細を開く/ });
+    const colors = cards.map((card) => card.style.getPropertyValue("--member-color"));
+    expect(new Set(colors).size).toBe(12);
+  });
+
   it("担当者を行・日付を列として予定の時刻と終日を正しいセルに表示する", () => {
     const members = [
       { id: "member-1", displayName: "佐藤", department: "営業一課" },

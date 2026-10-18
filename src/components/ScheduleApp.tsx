@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppNavigation } from "@/components/AppNavigation";
 import { CalendarToolbar } from "@/components/CalendarToolbar";
 import { DayAgenda } from "@/components/DayAgenda";
+import { DayScheduleDialog } from "@/components/DayScheduleDialog";
 import { EventDetailsDialog } from "@/components/EventDetailsDialog";
 import { LoginScreen } from "@/components/LoginScreen";
 import { MemberAvatar } from "@/components/MemberAvatar";
@@ -16,7 +17,7 @@ import { MemberScheduleGrid } from "@/components/MemberScheduleGrid";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { useMemberPhotoUrls } from "@/components/useMemberPhotoUrls";
 import { getCalendarRange, getVisibleDays, moveSelectedDate, type ViewMode } from "@/domain/calendar";
-import { getMemberColorStyle } from "@/domain/memberColor";
+import { createMemberColorMap, extendMemberColorMap, getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
 import type { PublicSalesMember } from "@/domain/member";
 import {
   PUBLIC_EVENTS_RESPONSE_MAX_BYTES,
@@ -60,6 +61,8 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
   const [isMobile, setIsMobile] = useState(false);
   const [deselectedOwnerIds, setDeselectedOwnerIds] = useState<string[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<NormalizedEvent | null>(null);
+  const [previewDate, setPreviewDate] = useState<Date | null>(null);
+  const [colorRegistry, setColorRegistry] = useState<MemberColorMap>(() => createMemberColorMap([]));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
@@ -78,6 +81,15 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     firebaseUser,
     firebaseReady && firebaseUser !== null && !isDemoMode,
   );
+  const memberColors = useMemo(() => extendMemberColorMap(colorRegistry, [
+    ...members.map((member) => member.id), ...events.map((event) => event.ownerUserId),
+  ]), [colorRegistry, members, events]);
+
+  useEffect(() => { setColorRegistry(memberColors); }, [memberColors]);
+
+  useEffect(() => {
+    if (!isMobile) setPreviewDate(null);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!window.matchMedia) return;
@@ -109,6 +121,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           signInPending.current = false;
           if (!active) return;
           setFirebaseUser(user);
+          setColorRegistry(createMemberColorMap([]));
+          setSelectedEvent(null);
+          setPreviewDate(null);
           setAuthInitializing(false);
           setSigningIn(false);
           setAuthError(null);
@@ -131,6 +146,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           signInPending.current = false;
           if (!active) return;
           setFirebaseUser(null);
+          setColorRegistry(createMemberColorMap([]));
+          setSelectedEvent(null);
+          setPreviewDate(null);
           setAuthInitializing(false);
           setSigningIn(false);
           setMembers([]);
@@ -148,6 +166,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
     } catch {
       authGeneration.current += 1;
       setFirebaseUser(null);
+      setColorRegistry(createMemberColorMap([]));
+      setSelectedEvent(null);
+      setPreviewDate(null);
       setAuthInitializing(false);
       setAuthError("Microsoft 365の認証状態を確認できませんでした。");
     }
@@ -400,6 +421,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
               events={visibleEvents}
               members={visibleMembers}
               memberPhotoUrls={memberPhotoUrls}
+              memberColors={memberColors}
               onEventSelect={setSelectedEvent}
             />
           ) : (
@@ -409,6 +431,9 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                 displayedDate={displayedDate}
                 selectedDate={selectedDate}
                 events={visibleEvents}
+                memberColors={memberColors}
+                enableDayPreview={isMobile}
+                onDayPreview={setPreviewDate}
                 onDaySelect={(day) => {
                   setSelectedDate(day);
                   setSelectedEvent(null);
@@ -419,8 +444,10 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                 }}
                 onEventSelect={setSelectedEvent}
               />
+              {isMobile ? <p className="calendarPreviewHint">日付を長押しすると、その日の予定を確認できます。</p> : null}
               {!loading && !error ? (
-                <DayAgenda day={selectedDate} events={visibleEvents} onEventSelect={setSelectedEvent} />
+                <DayAgenda key={selectedDate.toDateString()} day={selectedDate} events={visibleEvents}
+                  members={availableMembers} memberColors={memberColors} onEventSelect={setSelectedEvent} />
               ) : null}
             </>
           )}
@@ -456,7 +483,7 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
                 </div>
                 <div className="memberFilterList">
                   {availableMembers.map((member) => (
-                    <label className="memberFilterOption" key={member.id} style={getMemberColorStyle(member.id)}>
+                    <label className="memberFilterOption" key={member.id} style={getMemberColorStyle(member.id, memberColors)}>
                       <input
                         type="checkbox"
                         aria-label={member.department ? `${member.displayName} / ${member.department}` : member.displayName}
@@ -509,13 +536,19 @@ export function ScheduleApp({ allowDemoAuth = false }: ScheduleAppProps = {}) {
           {authError ? <p className="errorText" role="status">{authError}</p> : null}
         </aside>
       </section>
-      <EventDetailsDialog event={selectedEvent} onClose={() => setSelectedEvent(null)} />
+      {isMobile && previewDate && !loading && !error ? (
+        <DayScheduleDialog day={previewDate} events={visibleEvents} members={availableMembers} memberColors={memberColors}
+          onClose={() => setPreviewDate(null)}
+          onEventSelect={(event) => { setPreviewDate(null); setSelectedEvent(event); }} />
+      ) : null}
+      <EventDetailsDialog event={selectedEvent} memberColors={memberColors} onClose={() => setSelectedEvent(null)} />
     </main>
   );
 
   function clearVisibleEvents() {
     setEvents([]);
     setSelectedEvent(null);
+    setPreviewDate(null);
     setError(null);
   }
 }

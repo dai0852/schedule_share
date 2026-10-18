@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
 import type { PublicSalesMember } from "@/domain/member";
 import type { NormalizedEvent } from "@/domain/schedule";
-import { getMemberColorStyle } from "@/domain/memberColor";
+import { createMemberColorMap, getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
 import { MemberAvatar } from "@/components/MemberAvatar";
 
 export function MemberScheduleGrid({
@@ -13,15 +13,18 @@ export function MemberScheduleGrid({
   events,
   members,
   memberPhotoUrls = {},
+  memberColors,
   onEventSelect,
 }: {
   days: Date[];
   events: NormalizedEvent[];
   members: PublicSalesMember[];
   memberPhotoUrls?: Record<string, string>;
+  memberColors?: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   const gridStyle = { "--calendar-columns": days.length } as CSSProperties;
+  const colors = memberColors ?? createMemberColorMap(members.map((member) => member.id));
 
   return (
     <div
@@ -57,7 +60,7 @@ export function MemberScheduleGrid({
           return (
             <div className="memberScheduleRow" key={member.id} role="row">
               <div className="memberScheduleMember" role="rowheader">
-                <span className="memberColorDot" style={getMemberColorStyle(member.id)} aria-hidden="true" />
+                <span className="memberColorDot" style={getMemberColorStyle(member.id, colors)} aria-hidden="true" />
                 <MemberAvatar displayName={member.displayName} photoUrl={memberPhotoUrls[member.id]} />
                 <span>
                   <strong>{member.displayName}</strong>
@@ -70,6 +73,7 @@ export function MemberScheduleGrid({
                   events={memberEvents}
                   key={toDayKey(day)}
                   memberName={member.displayName}
+                  memberColors={colors}
                   onEventSelect={onEventSelect}
                 />
               ))}
@@ -85,11 +89,13 @@ function MemberDayCell({
   day,
   events,
   memberName,
+  memberColors,
   onEventSelect,
 }: {
   day: Date;
   events: NormalizedEvent[];
   memberName: string;
+  memberColors: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   const dayEvents = eventsForDay(events, day)
@@ -104,7 +110,7 @@ function MemberDayCell({
       aria-label={`${memberName} ${format(day, "M月d日", { locale: ja })}`}
     >
       {allDayEvents.map((event) => (
-        <MemberEventCard day={day} event={event} key={event.eventId} onEventSelect={onEventSelect} />
+        <MemberEventCard day={day} event={event} memberColors={memberColors} key={event.eventId} onEventSelect={onEventSelect} />
       ))}
       {timedGroups.map((group) => {
         const groupStyle = { "--member-overlap-columns": group.lanes.length } as CSSProperties;
@@ -131,7 +137,7 @@ function MemberDayCell({
                 key={event.eventId}
                 style={{ gridColumn: laneIndex + 1 }}
               >
-                <MemberEventCard day={day} event={event} onEventSelect={onEventSelect} />
+                <MemberEventCard day={day} event={event} memberColors={memberColors} onEventSelect={onEventSelect} />
               </div>
             ))}
           </div>
@@ -184,17 +190,19 @@ function groupOverlappingEvents(events: NormalizedEvent[], day: Date): TimedEven
 function MemberEventCard({
   day,
   event,
+  memberColors,
   onEventSelect,
 }: {
   day: Date;
   event: NormalizedEvent;
+  memberColors: MemberColorMap;
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
   return (
     <button
       aria-label={`${event.title}の予定詳細を開く`}
       className="memberScheduleEvent memberColoredEvent"
-      style={getMemberColorStyle(event.ownerUserId)}
+      style={getMemberColorStyle(event.ownerUserId, memberColors)}
       onClick={() => onEventSelect?.(event)}
       type="button"
     >

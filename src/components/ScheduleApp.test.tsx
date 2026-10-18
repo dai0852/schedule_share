@@ -7,7 +7,7 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PublicSalesMember } from "@/domain/member";
-import { getMemberColorStyle } from "@/domain/memberColor";
+import { getCalendarRange } from "@/domain/calendar";
 import { PUBLIC_EVENTS_RESPONSE_MAX_BYTES, type NormalizedEvent } from "@/domain/schedule";
 import { ScheduleApp } from "./ScheduleApp";
 
@@ -141,11 +141,20 @@ function deferred<T>() {
 }
 
 function openDetails(label: string) {
-  const summary = [...document.querySelectorAll("details > summary")]
+  const summary = [...document.querySelectorAll(".scheduleAccordion > summary")]
     .find((item) => item.textContent?.includes(label));
   expect(summary).toBeDefined();
   const details = summary?.parentElement as HTMLDetailsElement;
   if (!details.open) fireEvent.click(summary!);
+  expect(details.open).toBe(true);
+  return details;
+}
+
+function openAgendaMember(agenda: HTMLElement, name: string, count: number) {
+  const summary = within(agenda).getByLabelText(`${name}の予定${count}件`, { selector: "summary" });
+  const details = summary.parentElement as HTMLDetailsElement;
+  expect(details.open).toBe(false);
+  fireEvent.click(summary);
   expect(details.open).toBe(true);
   return details;
 }
@@ -217,8 +226,8 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("other-dept-token", "hr@studio-csa.com")));
 
-    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
-    const sections = [...document.querySelectorAll("details > summary")];
+    await waitFor(() => expect(document.querySelector(".scheduleAccordion > summary")).not.toBeNull());
+    const sections = [...document.querySelectorAll(".scheduleAccordion > summary")];
     expect(sections).toHaveLength(2);
     expect(sections[0]).toHaveTextContent("表示する担当者");
     expect(sections[1]).toHaveTextContent("その他の操作");
@@ -249,8 +258,10 @@ describe("ScheduleApp", () => {
     const calendarCard = screen.getAllByRole("button", { name: "顧客訪問の予定詳細を開く" })[0];
     expect(calendarCard).toHaveTextContent("田中 花子");
     expect(calendarCard).toHaveTextContent("顧客訪問");
-    const color = getMemberColorStyle(memberId) as Record<string, string>;
-    expect(calendarCard.style.getPropertyValue("--member-color")).toBe(color["--member-color"]);
+    const agenda = screen.getByRole("region", { name: "選択日の予定" });
+    const memberAgenda = openAgendaMember(agenda, "田中 花子", 1);
+    expect(calendarCard.style.getPropertyValue("--member-color"))
+      .toBe(memberAgenda.querySelector<HTMLElement>("summary")?.style.getPropertyValue("--member-color"));
     fireEvent.click(calendarCard);
 
     const dialog = screen.getByRole("dialog", { name: "予定の詳細" });
@@ -274,7 +285,7 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("member-token", "member@studio-csa.com")));
 
-    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(".scheduleAccordion > summary")).not.toBeNull());
     openDetails("その他の操作");
     expect(screen.getByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
     expect(screen.queryByRole("link", { name: "管理者コンソール" })).not.toBeInTheDocument();
@@ -295,7 +306,7 @@ describe("ScheduleApp", () => {
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("admin-token", "kurihara@studio-csa.com")));
 
-    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(".scheduleAccordion > summary")).not.toBeNull());
     openDetails("その他の操作");
     expect(screen.getByRole("link", { name: "管理者コンソール" })).toHaveAttribute("href", "/admin");
     expect(screen.getByRole("link", { name: "Googleカレンダー設定・解除" })).toHaveAttribute("href", "/connect");
@@ -308,7 +319,7 @@ describe("ScheduleApp", () => {
 
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser("admin-token", "kurihara@studio-csa.com")));
-    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(".scheduleAccordion > summary")).not.toBeNull());
     openDetails("表示する担当者");
 
     expect(screen.queryByRole("link", { name: /Googleカレンダー/ })).not.toBeInTheDocument();
@@ -325,7 +336,7 @@ describe("ScheduleApp", () => {
 
     render(<ScheduleApp />);
     await act(async () => auth.emit(signedInUser()));
-    await waitFor(() => expect(document.querySelector("details > summary")).not.toBeNull());
+    await waitFor(() => expect(document.querySelector(".scheduleAccordion > summary")).not.toBeNull());
     openDetails("表示する担当者");
 
     expect(screen.queryByRole("link", { name: "Googleカレンダー接続" })).not.toBeInTheDocument();
@@ -380,6 +391,151 @@ describe("ScheduleApp", () => {
     expect(lastEventCall?.[1]).toMatchObject({ headers: { authorization: "Bearer filter-token" } });
   });
 
+  it("12名の担当者別一覧は登録順・一意の色を保ち、予定元混在と絞り込みでも色が変わらない", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    const teamMembers: PublicSalesMember[] = Array.from({ length: 12 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+      displayName: `担当${String(index + 1).padStart(2, "0")}`,
+      department: "営業部",
+    }));
+    const teamEvents: NormalizedEvent[] = teamMembers.map((owner, index) => {
+      const source = index % 2 === 0 ? "google" : "microsoft";
+      const hour = 20 - index;
+      return {
+        ...event,
+        eventId: `${source}:${owner.id}:schedule-${index}`,
+        source,
+        sourceEventId: `schedule-${index}`,
+        calendarId: source === "google" ? "primary" : "outlook",
+        ownerUserId: owner.id,
+        ownerName: owner.displayName,
+        title: `${owner.displayName}の商談`,
+        start: `${visibleDate}T${String(hour).padStart(2, "0")}:00:00+09:00`,
+        end: `${visibleDate}T${String(hour + 1).padStart(2, "0")}:00:00+09:00`,
+      };
+    });
+    const mixedOwner = teamMembers[5];
+    teamEvents.push({
+      ...teamEvents[5],
+      eventId: `google:${mixedOwner.id}:extra`,
+      source: "google",
+      sourceEventId: "extra",
+      calendarId: "primary",
+      title: "別の予定元の商談",
+      start: `${visibleDate}T08:00:00+09:00`,
+      end: `${visibleDate}T09:00:00+09:00`,
+    });
+    installApiFetch({ members: { members: teamMembers }, events: { events: teamEvents } });
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    const agenda = screen.getByRole("region", { name: "選択日の予定" });
+    const summaries = [...agenda.querySelectorAll<HTMLElement>(".dayAgendaMember > summary")];
+    expect(summaries.map((summary) => summary.getAttribute("aria-label"))).toEqual(
+      teamMembers.map((owner, index) => `${owner.displayName}の予定${index === 5 ? 2 : 1}件`),
+    );
+    expect(summaries.every((summary) => !(summary.parentElement as HTMLDetailsElement).open)).toBe(true);
+
+    openDetails("表示する担当者");
+    const colors = teamMembers.map((owner, index) => {
+      const checkbox = screen.getByRole("checkbox", { name: `${owner.displayName} / 営業部` });
+      const option = checkbox.closest<HTMLElement>("label");
+      const color = option?.style.getPropertyValue("--member-color");
+      expect(color).toBeTruthy();
+      expect(summaries[index].style.getPropertyValue("--member-color")).toBe(color);
+      const group = openAgendaMember(agenda, owner.displayName, index === 5 ? 2 : 1);
+      const cards = [...group.querySelectorAll<HTMLElement>(".dayAgendaEvent")];
+      expect(cards).toHaveLength(index === 5 ? 2 : 1);
+      expect(cards.every((card) => card.style.getPropertyValue("--member-color") === color)).toBe(true);
+      return color;
+    });
+    expect(new Set(colors).size).toBe(12);
+    const mixedCheckbox = screen.getByRole("checkbox", { name: `${mixedOwner.displayName} / 営業部` });
+    const mixedGroup = summaries[5].parentElement as HTMLDetailsElement;
+    expect(within(mixedGroup).getByText(`${mixedOwner.displayName}の商談`)).toBeInTheDocument();
+    expect(within(mixedGroup).getByText("別の予定元の商談")).toBeInTheDocument();
+    fireEvent.click(mixedCheckbox);
+    expect(agenda.querySelector(`[aria-label="${mixedOwner.displayName}の予定2件"]`)).toBeNull();
+    fireEvent.click(mixedCheckbox);
+    const restoredSummary = within(agenda).getByLabelText(`${mixedOwner.displayName}の予定2件`, { selector: "summary" });
+    expect(restoredSummary.style.getPropertyValue("--member-color")).toBe(colors[5]);
+    expect(mixedCheckbox.closest<HTMLElement>("label")?.style.getPropertyValue("--member-color")).toBe(colors[5]);
+
+    const selectedDate = new Date(`${visibleDate}T12:00:00+09:00`);
+    const otherDate = new Date(selectedDate);
+    otherDate.setDate(otherDate.getDate() === 1 ? 2 : 1);
+    fireEvent.click(selectedDay(format(otherDate, "yyyy年M月d日"), 0));
+    fireEvent.click(selectedDay(format(selectedDate, "yyyy年M月d日"), 13));
+    const afterDateChange = within(screen.getByRole("region", { name: "選択日の予定" }))
+      .getByLabelText(`${mixedOwner.displayName}の予定2件`, { selector: "summary" });
+    expect((afterDateChange.parentElement as HTMLDetailsElement).open).toBe(false);
+    expect(afterDateChange.style.getPropertyValue("--member-color")).toBe(colors[5]);
+  });
+
+  it("担当者API失敗後に月が変わり新担当者が現れても既知担当者の色を保つ", async () => {
+    vi.useRealTimers();
+    const auth = captureAuthState();
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+    const nextMonthFirst = format(nextMonth, "yyyy-MM-dd");
+    const makeOwnerEvent = (ownerId: string, ownerName: string, day: string): NormalizedEvent => ({
+      ...event,
+      eventId: `google:${ownerId}:meeting`,
+      sourceEventId: "meeting",
+      ownerUserId: ownerId,
+      ownerName,
+      title: `${ownerName}の予定`,
+      start: `${day}T09:00:00+09:00`,
+      end: `${day}T10:00:00+09:00`,
+    });
+    const ownerA = makeOwnerEvent("owner-a", "担当A", nextMonthFirst);
+    const ownerBCurrent = makeOwnerEvent("owner-b", "担当B", visibleDate);
+    const ownerC = makeOwnerEvent("owner-c", "担当C", visibleDate);
+    const ownerBNext = makeOwnerEvent("owner-b", "担当B", nextMonthFirst);
+    let eventCallCount = 0;
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/members") return Promise.resolve(jsonResponse({ error: "unavailable" }, 500));
+      if (url === "/api/me/calendar-connection") return Promise.resolve(jsonResponse({ registered: false }));
+      if (url.startsWith("/api/events")) {
+        eventCallCount += 1;
+        return Promise.resolve(jsonResponse({ events: eventCallCount === 1
+          ? [ownerBCurrent, ownerC] : [ownerA, ownerBNext] }));
+      }
+      throw new Error(`unexpected request: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ScheduleApp />);
+    await act(async () => auth.emit(signedInUser()));
+
+    const firstAgenda = await screen.findByRole("region", { name: "選択日の予定" });
+    const firstB = within(firstAgenda).getByLabelText("担当Bの予定1件", { selector: "summary" });
+    const firstC = within(firstAgenda).getByLabelText("担当Cの予定1件", { selector: "summary" });
+    const bColor = firstB.style.getPropertyValue("--member-color");
+    const cColor = firstC.style.getPropertyValue("--member-color");
+    expect(bColor).toBeTruthy();
+    expect(cColor).toBeTruthy();
+    expect(bColor).not.toBe(cColor);
+
+    fireEvent.click(screen.getByRole("button", { name: "次の期間" }));
+    const nextRange = getCalendarRange("month", nextMonth);
+    await waitFor(() => expect(eventRequests(fetchMock)).toHaveLength(2));
+    const params = new URL(String(eventRequests(fetchMock)[1][0]), "http://localhost").searchParams;
+    expect(params.get("start")).toBe(nextRange.start.toISOString());
+    expect(params.get("end")).toBe(nextRange.end.toISOString());
+    expect(selectedDay(format(nextMonth, "yyyy年M月d日"), 2)).toHaveAttribute("aria-pressed", "true");
+
+    const nextAgenda = await screen.findByRole("region", { name: "選択日の予定" });
+    const nextA = within(nextAgenda).getByLabelText("担当Aの予定1件", { selector: "summary" });
+    const nextB = within(nextAgenda).getByLabelText("担当Bの予定1件", { selector: "summary" });
+    const aColor = nextA.style.getPropertyValue("--member-color");
+    expect(nextB.style.getPropertyValue("--member-color")).toBe(bColor);
+    expect(aColor).toBeTruthy();
+    expect(aColor).not.toBe(bColor);
+    expect(aColor).not.toBe(cColor);
+  });
+
   it("同じ月の日付選択は再取得せず、選択日の一覧には同名予定もすべて残す", async () => {
     vi.useRealTimers();
     const auth = captureAuthState();
@@ -398,16 +554,20 @@ describe("ScheduleApp", () => {
     const dayLabel = format(new Date(`${visibleDate}T12:00:00+09:00`), "yyyy年M月d日");
     expect(selectedDay(dayLabel, 4)).toHaveAttribute("aria-pressed", "true");
     const agenda = screen.getByRole("region", { name: "選択日の予定" });
+    openAgendaMember(agenda, "田中 花子", 4);
     expect(within(agenda).getAllByText("同名の予定")).toHaveLength(4);
     const callsBefore = eventRequests(fetchMock).length;
     const otherDay = new Date(`${visibleDate}T12:00:00+09:00`);
     otherDay.setDate(otherDay.getDate() === 1 ? 2 : 1);
     fireEvent.click(selectedDay(format(otherDay, "yyyy年M月d日"), 0));
     expect(selectedDay(format(otherDay, "yyyy年M月d日"), 0)).toHaveAttribute("aria-pressed", "true");
-    expect(within(agenda).queryByText("同名の予定")).not.toBeInTheDocument();
-    expect(within(agenda).getByText("この日の予定はありません。")).toBeInTheDocument();
+    const emptyAgenda = screen.getByRole("region", { name: "選択日の予定" });
+    expect(within(emptyAgenda).queryByText("同名の予定")).not.toBeInTheDocument();
+    expect(within(emptyAgenda).getByText("この日の予定はありません。")).toBeInTheDocument();
     fireEvent.click(selectedDay(dayLabel, 4));
-    expect(within(agenda).getAllByText("同名の予定")).toHaveLength(4);
+    const restoredAgenda = screen.getByRole("region", { name: "選択日の予定" });
+    openAgendaMember(restoredAgenda, "田中 花子", 4);
+    expect(within(restoredAgenda).getAllByText("同名の予定")).toHaveLength(4);
     expect(eventRequests(fetchMock)).toHaveLength(callsBefore);
   });
 
@@ -681,6 +841,7 @@ describe("ScheduleApp", () => {
     expect(screen.getByText("2件", { selector: ".countBadge" })).toBeInTheDocument();
     fireEvent.click(selectedDay("2026年6月7日", 2));
     const agenda = screen.getByRole("region", { name: "選択日の予定" });
+    openAgendaMember(agenda, "田中 花子", 2);
     expect(within(agenda).getAllByText("同名の商談")).toHaveLength(2);
   });
 

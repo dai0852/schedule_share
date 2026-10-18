@@ -1,14 +1,16 @@
 import { addDays, format, isSameDay, isSameMonth, startOfDay } from "date-fns";
 import { ja } from "date-fns/locale";
 import { eventsForDay, isAllDayEvent, toDayKey } from "@/domain/calendar";
-import { getMemberColorStyle } from "@/domain/memberColor";
+import { createMemberColorMap, getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
 import type { NormalizedEvent } from "@/domain/schedule";
+import { MonthDayButton } from "@/components/MonthDayButton";
 
 const WEEKDAYS = ["月", "火", "水", "木", "金", "土", "日"];
 const MAX_VISIBLE_EVENTS = 3;
 
 export function MonthCalendar({
   days, displayedDate, selectedDate, events, onDaySelect, onEventSelect,
+  memberColors, enableDayPreview = false, onDayPreview,
 }: {
   days: Date[];
   displayedDate?: Date;
@@ -16,7 +18,11 @@ export function MonthCalendar({
   events: NormalizedEvent[];
   onDaySelect?: (day: Date) => void;
   onEventSelect?: (event: NormalizedEvent) => void;
+  memberColors?: MemberColorMap;
+  enableDayPreview?: boolean;
+  onDayPreview?: (day: Date) => void;
 }) {
+  const colors = memberColors ?? createMemberColorMap(events.map((event) => event.ownerUserId));
   return (
     <div className="calendarScroller monthScroller" aria-label="月カレンダー">
       <div className="monthGrid">
@@ -34,32 +40,32 @@ export function MonthCalendar({
           ].filter(Boolean).join(" ");
           return (
             <section className={className} key={toDayKey(day)}>
-              <button
-                className="monthDaySelect"
-                aria-label={`${format(day, "yyyy年M月d日", { locale: ja })}、予定${dayEvents.length}件`}
-                aria-pressed={selected}
-                aria-current={isSameDay(day, new Date()) ? "date" : undefined}
-                onClick={() => onDaySelect?.(day)}
-                type="button"
+              <MonthDayButton
+                label={`${format(day, "yyyy年M月d日", { locale: ja })}、予定${dayEvents.length}件`}
+                selected={selected}
+                today={isSameDay(day, new Date())}
+                onSelect={() => onDaySelect?.(day)}
+                onPreview={onDayPreview ? () => onDayPreview(day) : undefined}
+                enablePreview={enableDayPreview}
               >
                 <time dateTime={toDayKey(day)}>{format(day, "d")}</time>
                 {dayEvents.length > 0 ? (
                   <span className="monthDaySummary" aria-hidden="true">
                     <span className="monthOwnerDots">
                       {owners.slice(0, 3).map((event) => (
-                        <span className="memberColorDot" style={getMemberColorStyle(event.ownerUserId)} key={event.ownerUserId} />
+                        <span className="memberColorDot" style={getMemberColorStyle(event.ownerUserId, colors)} key={event.ownerUserId} />
                       ))}
                     </span>
                     <span className="monthDayCount">{dayEvents.length}件</span>
                   </span>
                 ) : null}
-              </button>
+              </MonthDayButton>
               <div className="monthDayEvents">
                 {dayEvents.slice(0, MAX_VISIBLE_EVENTS).map((event) => (
                   <button
                     aria-label={`${event.title}の予定詳細を開く`}
                     className="monthEvent memberColoredEvent"
-                    style={getMemberColorStyle(event.ownerUserId)}
+                    style={getMemberColorStyle(event.ownerUserId, colors)}
                     key={event.eventId}
                     onClick={() => onEventSelect?.(event)}
                     type="button"

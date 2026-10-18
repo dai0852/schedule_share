@@ -1725,6 +1725,48 @@ a:focus-visible {
 .dayAgendaContinuation { font-size: 12px; line-height: 1.5; }
 .dayAgendaEmpty { color: var(--muted); font-size: 14px; padding: 16px 0; }
 
+.dayAgendaMembers { display: grid; gap: 10px; }
+.dayAgendaMember { border: 1px solid var(--grid); border-radius: 16px; min-width: 0; overflow: hidden; }
+.dayAgendaMemberSummary {
+  align-items: center;
+  background: var(--member-bg);
+  border-left: 4px solid var(--member-color);
+  color: var(--member-text);
+  cursor: pointer;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  list-style: none;
+  min-height: 64px;
+  padding: 14px 16px;
+}
+.dayAgendaMemberSummary::-webkit-details-marker { display: none; }
+.dayAgendaMemberSummary:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.dayAgendaMemberDot { background: var(--member-color); border-radius: 50%; height: 10px; width: 10px; }
+.dayAgendaMemberSummary .dayAgendaOwner { font-size: 15px; overflow-wrap: anywhere; }
+.dayAgendaMemberCount { font-size: 12px; font-weight: 700; white-space: nowrap; }
+.dayAgendaMember[open] .dayAgendaMemberChevron { transform: rotate(180deg); }
+.dayAgendaMember > .dayAgendaList { padding: 12px; }
+.calendarPreviewHint { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 10px 0 0; }
+.monthDaySelect { touch-action: pan-y; -webkit-touch-callout: none; user-select: none; }
+.eventDetailsDialog.memberColoredDialog { border-left-color: var(--member-color); }
+
+.dayScheduleDialog {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  color: var(--text);
+  max-height: calc(100dvh - 24px);
+  max-width: 650px;
+  padding: 0;
+  width: calc(100% - 24px);
+}
+.dayScheduleDialog::backdrop { background: rgb(0 0 0 / 45%); }
+.daySchedulePanel { display: flex; flex-direction: column; max-height: min(85dvh, 760px); }
+.dayScheduleDialogHeader { align-items: center; border-bottom: 1px solid var(--grid); display: flex; flex-shrink: 0; justify-content: space-between; padding: 14px 16px; }
+.dayScheduleDialogBody { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px; touch-action: pan-y; }
+.dayScheduleDialogBody .dayAgenda { border: 0; margin: 0; padding: 0; }
+
 @media (max-width: 760px) {
   .topbar {
     gap: 10px;

@@ -6,14 +6,17 @@ import { X } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { isAllDayEvent } from "@/domain/calendar";
+import { getMemberColorStyle, type MemberColorMap } from "@/domain/memberColor";
 import { CALENDAR_SOURCE_LABELS, type NormalizedEvent } from "@/domain/schedule";
 
 export function EventDetailsDialog({
   event,
   onClose,
+  memberColors,
 }: {
   event: NormalizedEvent | null;
   onClose: () => void;
+  memberColors?: MemberColorMap;
 }) {
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -33,7 +36,8 @@ export function EventDetailsDialog({
       <section
         aria-label="予定の詳細"
         aria-modal="true"
-        className={`eventDetailsDialog ${event.source}`}
+        className="eventDetailsDialog memberColoredDialog"
+        style={getMemberColorStyle(event.ownerUserId, memberColors)}
         onKeyDown={(keyEvent) => {
           if (keyEvent.key === "Escape") onClose();
         }}

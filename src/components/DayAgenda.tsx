@@ -1,22 +1,47 @@
 import { addDays, format, startOfDay } from "date-fns";
 import { ja } from "date-fns/locale";
+import { ChevronDown } from "lucide-react";
 
 import { eventsForDay, isAllDayEvent } from "@/domain/calendar";
-import { getMemberColorStyle } from "@/domain/memberColor";
+import type { PublicSalesMember } from "@/domain/member";
+import {
+  createMemberColorMap,
+  getMemberColorStyle,
+  type MemberColorMap,
+} from "@/domain/memberColor";
 import type { NormalizedEvent } from "@/domain/schedule";
 
 export function DayAgenda({
   day,
   events,
+  memberColors,
+  members,
   onEventSelect,
 }: {
   day: Date;
   events: NormalizedEvent[];
+  memberColors?: MemberColorMap;
+  members?: PublicSalesMember[];
   onEventSelect?: (event: NormalizedEvent) => void;
 }) {
+  const colors = memberColors ?? createMemberColorMap(events.map((event) => event.ownerUserId));
   const dayEvents = eventsForDay(events, day).sort((a, b) => {
     const allDayOrder = Number(isAllDayEvent(b)) - Number(isAllDayEvent(a));
     return allDayOrder || Date.parse(a.start) - Date.parse(b.start);
+  });
+  const memberOrder = new Map<string, number>(members?.map((member, index) => [member.id, index]));
+  const eventsByOwner = new Map<string, NormalizedEvent[]>();
+  for (const event of dayEvents) {
+    const ownerEvents = eventsByOwner.get(event.ownerUserId) ?? [];
+    ownerEvents.push(event);
+    eventsByOwner.set(event.ownerUserId, ownerEvents);
+  }
+  const ownerGroups = [...eventsByOwner].sort(([firstId, firstEvents], [secondId, secondEvents]) => {
+    const firstOrder = memberOrder.get(firstId) ?? Number.POSITIVE_INFINITY;
+    const secondOrder = memberOrder.get(secondId) ?? Number.POSITIVE_INFINITY;
+    return (firstOrder === secondOrder ? 0 : firstOrder - secondOrder)
+      || firstEvents[0].ownerName.localeCompare(secondEvents[0].ownerName, "ja")
+      || firstId.localeCompare(secondId);
   });
 
   return (
@@ -28,33 +53,49 @@ export function DayAgenda({
       {dayEvents.length === 0 ? (
         <p className="dayAgendaEmpty">この日の予定はありません。</p>
       ) : (
-        <ul className="dayAgendaList">
-          {dayEvents.map((event) => {
-            const { time, continuation } = getEventTimeForDay(event, day);
+        <div className="dayAgendaMembers">
+          {ownerGroups.map(([ownerUserId, ownerEvents]) => {
+            const ownerStyle = getMemberColorStyle(ownerUserId, colors);
             return (
-              <li key={event.eventId}>
-                <button
-                  className="dayAgendaEvent memberColoredEvent"
-                  onClick={() => onEventSelect?.(event)}
-                  style={getMemberColorStyle(event.ownerUserId)}
-                  type="button"
-                >
-                  <span className="dayAgendaTime">{time}</span>
-                  <span className="dayAgendaContent">
-                    <span className="dayAgendaOwner">{event.ownerName}</span>
-                    <strong>{event.title}</strong>
-                    {event.location ? (
-                      <span className="dayAgendaLocation">{event.location}</span>
-                    ) : null}
-                    {continuation ? (
-                      <span className="dayAgendaContinuation">{continuation}</span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
+              <details className="dayAgendaMember" key={ownerUserId}>
+                <summary className="dayAgendaMemberSummary" style={ownerStyle}
+                  aria-label={`${ownerEvents[0].ownerName}の予定${ownerEvents.length}件`}>
+                  <span aria-hidden="true" className="dayAgendaMemberDot" />
+                  <span className="dayAgendaOwner">{ownerEvents[0].ownerName}</span>
+                  <span className="dayAgendaMemberCount">{ownerEvents.length}件</span>
+                  <ChevronDown aria-hidden="true" className="dayAgendaMemberChevron" size={18} />
+                </summary>
+                <ul className="dayAgendaList">
+                  {ownerEvents.map((event) => {
+                    const { time, continuation } = getEventTimeForDay(event, day);
+                    return (
+                      <li key={event.eventId}>
+                        <button
+                          className="dayAgendaEvent memberColoredEvent"
+                          onClick={() => onEventSelect?.(event)}
+                          style={ownerStyle}
+                          type="button"
+                        >
+                          <span className="dayAgendaTime">{time}</span>
+                          <span className="dayAgendaContent">
+                            <span className="dayAgendaOwner">{event.ownerName}</span>
+                            <strong>{event.title}</strong>
+                            {event.location ? (
+                              <span className="dayAgendaLocation">{event.location}</span>
+                            ) : null}
+                            {continuation ? (
+                              <span className="dayAgendaContinuation">{continuation}</span>
+                            ) : null}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </details>
             );
           })}
-        </ul>
+        </div>
       )}
     </section>
   );
